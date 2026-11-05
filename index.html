@@ -88,6 +88,16 @@ canvas{max-width:100%}
 
   <section id="idag" class="tab hide">
     <div class="card rec" id="recCard"></div>
+    <div class="card sec">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">⏰ Påminnelser</h2><span class="s">Skriv till @Oliverprivat_bot</span></div>
+      <div id="remList" style="margin-top:8px"></div>
+      <div class="row sec" style="gap:8px">
+        <input id="remText" placeholder="Ny påminnelse" style="flex:2;min-width:140px">
+        <input id="remAt" type="datetime-local" style="flex:1;min-width:150px">
+        <button class="btn" id="remAdd">Lägg till</button>
+      </div>
+      <div class="msg" id="remMsg"></div>
+    </div>
     <div class="grid sec" id="todayTiles"></div>
     <div class="grid2 sec">
       <div class="card"><h2>Puls idag</h2><canvas id="cHr"></canvas></div>
@@ -421,6 +431,7 @@ async function load(refresh) {
     if (!shown) { shown = true; show(localStorage.tab || 'idag'); }
     render();
     loadEaten();
+    loadRem();
     $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'});
   } catch (e) { $('load').classList.remove('hide'); $('load').textContent = 'Kunde inte hämta data: ' + e.message; $('upd').textContent = ''; }
   $('refresh').disabled = false;
@@ -588,6 +599,31 @@ function renderEaten() {
   if (n) $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal - sum('kcal'))} kcal kvar</div><div class="s">Ätit ${fmt(sum('kcal'))} av ${fmt(n.kcal)} · protein ${fmt(sum('protein_g'))} / ${n.protein_g} g</div>
     <div class="bar"><i style="width:${Math.min(100, 100 * sum('kcal') / n.kcal)}%"></i></div>`;
 }
+// --- Påminnelser ---
+async function loadRem() {
+  const {data} = await sb.from('reminders').select('id,text,due_at').is('sent_at', null).order('due_at').limit(30);
+  const when = d => { const t = new Date(d), td = new Date(), tm = new Date(Date.now() + 864e5);
+    const day = t.toDateString() === td.toDateString() ? 'Idag' : t.toDateString() === tm.toDateString() ? 'Imorgon' : t.toLocaleDateString('sv-SE', {weekday: 'short', day: 'numeric', month: 'short'});
+    return `${day} ${t.toLocaleTimeString('sv-SE', {hour: '2-digit', minute: '2-digit'})}`; };
+  $('remList').innerHTML = (data || []).map(r => `<div class="food"><div><b>${esc(r.text)}</b><div class="s">${when(r.due_at)}</div></div>
+    <button class="del" data-rem="${r.id}" aria-label="Ta bort ${esc(r.text)}">Ta bort</button></div>`).join('') || '<div class="s">Inga kommande påminnelser. Skriv till exempel "påminn mig 15:00 att ringa BVC" till boten.</div>';
+}
+$('remList').onclick = async e => {
+  const b = e.target.closest('[data-rem]'); if (!b) return;
+  b.disabled = true; await sb.from('reminders').delete().eq('id', b.dataset.rem); loadRem();
+};
+$('remAdd').onclick = async () => {
+  const text = $('remText').value.trim(), at = $('remAt').value;
+  if (!text || !at) { $('remMsg').textContent = 'Skriv vad och välj tid.'; return; }
+  const due = new Date(at);
+  if (due < new Date()) { $('remMsg').textContent = 'Tiden har redan passerat.'; return; }
+  $('remAdd').disabled = true;
+  const {error} = await sb.from('reminders').insert({text, due_at: due.toISOString()});
+  $('remAdd').disabled = false;
+  if (error) { $('remMsg').textContent = 'Fel: ' + error.message; return; }
+  $('remText').value = ''; $('remAt').value = ''; $('remMsg').textContent = ''; loadRem();
+};
+
 // --- Kylskåpscoach ---
 const pImgs = [null, null, null];
 let pRecipes = [];
