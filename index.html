@@ -63,7 +63,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
   </div>
   <nav id="tabs">
-    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="rutter">Rutter</button>
+    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="strava">Strava</button><button data-t="rutter">Rutter</button>
   </nav>
 </header>
 <main>
@@ -171,6 +171,15 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       <div class="card"><h2>Steg</h2><canvas id="cSteps"></canvas></div>
       <div class="card"><h2>Förbrukade kalorier</h2><canvas id="cKcal"></canvas></div>
     </div>
+  </section>
+
+  <section id="strava" class="tab hide">
+    <div class="row" style="justify-content:space-between"><div class="s" id="stFetched"></div>
+      <div class="row"><button class="btn ghost" data-p="week">Vecka</button><button class="btn ghost" data-p="month">Månad</button><button class="btn" data-p="year">År</button></div></div>
+    <div class="grid sec" id="stTotals"></div>
+    <div class="card sec"><h2>Distans per månad (km)</h2><canvas id="cStMonth"></canvas></div>
+    <div class="card sec"><h2>Alla dina rundor</h2><div id="stMap" class="map"></div></div>
+    <div class="card sec"><h2>Senaste aktiviteterna</h2><div class="tw"><table id="stTable"></table></div></div>
   </section>
 
   <section id="rutter" class="tab hide">
@@ -454,6 +463,31 @@ $('lUp').onpointerdown = () => $('lPw').autocomplete = 'new-password';
 start();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && D && load(false));
 
+// --- Strava ---
+let stPeriod = 'year', stMap;
+const S = () => D.strava;
+function renderStrava() {
+  if (!S()) { $('stFetched').textContent = 'Ingen Strava-data ännu.'; return; }
+  $('stFetched').textContent = `Strava hämtad ${S().fetched} · aktiviteter sedan ${S().first}`;
+  document.querySelectorAll('#strava [data-p]').forEach(b => b.className = 'btn' + (b.dataset.p === stPeriod ? '' : ' ghost'));
+  const t = S().totals[stPeriod] || {}, C = {'Löpning': css('--bad'), 'Cykel': css('--accent'), 'Simning': css('--good'), 'Längdskidor': css('--warn')};
+  $('stTotals').innerHTML = Object.entries(t).sort((a, b) => b[1].h - a[1].h).map(([k, v]) =>
+    tile(k, v.km ? fmt(v.km, 1) + ' km' : v.n + ' pass', `${v.n} pass · ${fmt(v.h, 1)} h${v.elev ? ' · ' + fmt(v.elev) + ' hm' : ''}`)).join('') || '<div class="card s">Inga aktiviteter i perioden.</div>';
+  chart('cStMonth', 'bar', S().monthly.months, Object.entries(S().monthly.series).filter(([, v]) => v.some(x => x)).map(([k, v]) => ds(k, v, C[k] || css('--muted'))),
+    {scales: {x: {stacked: true, grid: {display: false}, ticks: {color: css('--muted')}}, y: {stacked: true, ticks: {color: css('--muted')}}}});
+  $('stTable').innerHTML = '<tr><th>Datum</th><th>Namn</th><th>Sport</th><th>km</th><th>Tid</th><th>Tempo</th><th>hm</th><th>Ansträngning</th><th>Kudos</th></tr>' +
+    S().recent.map(a => `<tr><td>${a.date}</td><td>${esc(a.name)}</td><td>${esc(a.sport)}</td><td>${a.km ? fmt(a.km, 2) : '–'}</td><td>${a.min} min</td><td>${esc(a.pace || '–')}</td><td>${fmt(a.elev)}</td><td>${fmt(a.effort)}</td><td>${fmt(a.kudos)}</td></tr>`).join('');
+}
+function drawStravaMap() {
+  if (!S()) return;
+  if (stMap) return stMap.invalidateSize();
+  stMap = L.map('stMap'); tiles().addTo(stMap);
+  const C = {Run: css('--bad'), Ride: css('--accent')};
+  S().tracks.forEach(t => L.polyline(t.coords, {color: C[t.sport] || css('--warn'), weight: 2, opacity: .55}).bindTooltip(`${esc(t.name)} ${t.date}`).addTo(stMap));
+  stMap.setView([63.707, 20.379], 12);
+}
+document.querySelectorAll('#strava [data-p]').forEach(b => b.onclick = () => { stPeriod = b.dataset.p; renderStrava(); });
+
 // --- Rutter ---
 let rMap, rLayer, rRoutes = [], rSel = -1, homeMarker, HOME;
 const tiles = () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
@@ -508,7 +542,7 @@ $('rSave').onclick = async () => {
 };
 
 const _show = show;
-show = t => { _show(t); if (t === 'rutter') initRoutes(); };
+show = t => { _show(t); if (t === 'rutter') initRoutes(); if (t === 'strava' && D) { renderStrava(); drawStravaMap(); } };
 </script>
 </body>
 </html>
