@@ -10,8 +10,6 @@
 <meta name="theme-color" content="#0f1115">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--chip:#eef2ff}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#2a2f38;--accent:#60a5fa;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--chip:#1e2533}}
@@ -63,7 +61,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
   </div>
   <nav id="tabs">
-    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="strava">Strava</button><button data-t="rutter">Rutter</button>
+    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="strava">Strava</button>
   </nav>
 </header>
 <main>
@@ -181,26 +179,6 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     <div class="card sec"><h2>Senaste aktiviteterna</h2><div class="tw"><table id="stTable"></table></div></div>
   </section>
 
-  <section id="rutter" class="tab hide">
-    <div class="card">
-      <h2>Bygg en slinga hemifrån</h2>
-      <div class="row" style="align-items:flex-end">
-        <label class="f">Typ<select id="rSport"><option value="run">Löpning</option><option value="trail">Trail/terräng</option><option value="bike">Cykel landsväg</option></select></label>
-        <label class="f">Distans (km)<input type="number" id="rKm" value="10" min="1" max="200" step="0.5" style="width:110px"></label>
-        <label class="f">Höjdmeter<input type="number" id="rGain" value="80" min="0" max="5000" step="10" style="width:110px"></label>
-        <button class="btn" id="rBtn">Bygg rutter</button>
-      </div>
-      <div class="msg" id="rMsg"></div>
-      <div class="s" id="rHome"></div>
-    </div>
-    <div class="grid2 sec" style="grid-template-columns:minmax(0,2fr) minmax(260px,1fr)">
-      <div id="rMap" class="map"></div>
-      <div id="rList"><div class="card s">Ange distans och höjdmeter och klicka på "Bygg rutter". Det tar cirka 20 sekunder.</div></div>
-    </div>
-    <div class="card sec hide" id="rProfCard"><h2>Höjdprofil</h2><div><canvas id="cProf"></canvas></div>
-      <div class="row" style="margin-top:10px"><input id="rName" placeholder="Namn på rutten" style="flex:1;min-width:180px"><button class="btn" id="rSave">Skicka till Garmin-klockan</button></div>
-      <div class="msg" id="rSaveMsg"></div></div>
-  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -479,61 +457,8 @@ function renderStrava() {
 }
 document.querySelectorAll('#strava [data-p]').forEach(b => b.onclick = () => { stPeriod = b.dataset.p; renderStrava(); });
 
-// --- Rutter ---
-let rMap, rLayer, rRoutes = [], rSel = -1, homeMarker, HOME;
-const tiles = () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
-async function initRoutes() {
-  if (rMap) return rMap.invalidateSize();
-  HOME = (await sb.from('garmin_dashboard').select('home').single()).data.home;
-  rMap = L.map('rMap').setView([HOME.lat, HOME.lon], 13); tiles().addTo(rMap);
-  homeMarker = L.marker([HOME.lat, HOME.lon], {draggable: true}).addTo(rMap).bindTooltip('Start (dra eller klicka på kartan för att flytta)');
-  rLayer = L.layerGroup().addTo(rMap);
-  const setHome = async ll => {
-    homeMarker.setLatLng(ll);
-    HOME = {lat: ll.lat, lon: ll.lng, label: 'Egen startpunkt'};
-    await sb.from('garmin_dashboard').update({home: HOME}).eq('id', 1);
-    $('rHome').textContent = `Start: ${HOME.label} (${HOME.lat.toFixed(4)}, ${HOME.lon.toFixed(4)})`;
-  };
-  homeMarker.on('dragend', () => setHome(homeMarker.getLatLng()));
-  rMap.on('click', e => { if (!rRoutes.length || confirm('Flytta startpunkten hit?')) setHome(e.latlng); });
-  $('rHome').textContent = `Start: ${HOME.label}. Dra markören eller klicka på kartan för att flytta den.`;
-}
-function drawRoutes() {
-  rLayer.clearLayers();
-  const cols = [css('--accent'), css('--warn'), css('--good')];
-  rRoutes.forEach((r, i) => L.polyline(r.coords, {color: cols[i], weight: i === rSel ? 6 : 3, opacity: i === rSel || rSel < 0 ? .9 : .35})
-    .on('click', () => pick(i)).addTo(rLayer));
-  rMap.invalidateSize();
-  if (rRoutes.length) rMap.fitBounds(L.featureGroup(rLayer.getLayers()).getBounds(), {padding: [20, 20]});
-  $('rList').innerHTML = rRoutes.map((r, i) => `<div class="card rcard ${i === rSel ? 'sel' : ''}" data-i="${i}" style="margin-bottom:10px">
-    <div class="row" style="justify-content:space-between"><b><span class="sw" style="background:${cols[i]}"></span>Förslag ${i + 1}</b><span class="chip">${r.match} % träff</span></div>
-    <div class="v" style="font-size:20px">${fmt(r.km, 1)} km · ${fmt(r.gain)} hm</div>
-    <div class="s">Högsta punkt ${fmt(r.max_ele)} m · lägsta ${fmt(r.min_ele)} m</div></div>`).join('');
-  document.querySelectorAll('.rcard').forEach(c => c.onclick = () => pick(+c.dataset.i));
-}
-function pick(i) {
-  rSel = i; drawRoutes();
-  const r = rRoutes[i]; $('rProfCard').classList.remove('hide');
-  $('rName').value = `${({run: 'Löp', trail: 'Trail', bike: 'Cykel'})[$('rSport').value]} ${fmt(r.km, 1)} km ${r.gain} hm`;
-  $('rSaveMsg').textContent = '';
-  chart('cProf', 'line', r.profile.map(p => p[0].toFixed(1)), [ds('Höjd (m)', r.profile.map(p => p[1]), css('--accent'), {pointRadius: 0, fill: true, backgroundColor: css('--accent') + '33'})]);
-}
-$('rBtn').onclick = async () => {
-  const km = +$('rKm').value, gain = +$('rGain').value;
-  $('rList').innerHTML = '<div class="card s">Letar efter slingor som matchar… cirka en minut.</div>';
-  const j = await post('routes', {km, gain, sport: $('rSport').value, lat: HOME.lat, lon: HOME.lon}, $('rBtn'), $('rMsg'));
-  if (!j) return;
-  $('rMsg').textContent = gain / km > 15 ? 'Holmsund är ganska platt. Med många höjdmeter per km blir träffen sämre, så prova en längre distans.' : '';
-  rRoutes = j.routes; rSel = -1; drawRoutes(); if (rRoutes.length) pick(0);
-};
-$('rSave').onclick = async () => {
-  const r = rRoutes[rSel];
-  const j = await post('course', {name: $('rName').value, coords: r.coords, sport: $('rSport').value}, $('rSave'), $('rSaveMsg'));
-  if (j) { $('rSaveMsg').textContent = `Sparad som bana i Garmin Connect: "${j.name}". Synka klockan och hitta den under Navigering → Banor.`; $('rSaveMsg').style.color = css('--good'); }
-};
-
 const _show = show;
-show = t => { _show(t); if (t === 'rutter') initRoutes(); if (t === 'strava' && D) renderStrava(); };
+show = t => { _show(t); if (t === 'strava' && D) renderStrava(); };
 </script>
 </body>
 </html>
