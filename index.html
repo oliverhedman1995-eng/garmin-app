@@ -71,12 +71,13 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   <div id="load" class="muted">Hämtar data från Garmin…</div>
   <div id="login" class="card hide" style="max-width:380px;margin:40px auto">
     <h2>Logga in</h2>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <input id="lEmail" type="email" autocomplete="username" placeholder="E-post">
-      <input id="lPw" type="password" autocomplete="current-password" placeholder="Lösenord">
-      <div class="row"><button class="btn" id="lIn">Logga in</button><button class="btn ghost" id="lUp">Skapa konto</button></div>
+    <form id="lForm" style="display:flex;flex-direction:column;gap:8px" onsubmit="return false">
+      <input id="lEmail" name="email" type="email" inputmode="email" autocapitalize="off" autocomplete="username" placeholder="E-post" style="font-size:16px">
+      <input id="lPw" name="password" type="password" autocomplete="current-password" placeholder="Lösenord" style="font-size:16px">
+      <label class="s"><input type="checkbox" id="lShow"> Visa lösenord</label>
+      <div class="row"><button class="btn" id="lIn" type="submit">Logga in</button><button class="btn ghost" id="lUp" type="button">Skapa konto</button></div>
       <div class="msg" id="lMsg"></div>
-    </div>
+    </form>
   </div>
 
   <section id="idag" class="tab hide">
@@ -329,7 +330,8 @@ const auth = async up => {
 };
 $('lIn').onclick = () => auth(false);
 $('lUp').onclick = () => auth(true);
-$('lPw').onkeydown = e => e.key === 'Enter' && auth(false);
+$('lShow').onchange = e => $('lPw').type = e.target.checked ? 'text' : 'password';
+$('lUp').onpointerdown = () => $('lPw').autocomplete = 'new-password';
 start();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && D && load(false));
 
