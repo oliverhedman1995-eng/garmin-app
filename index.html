@@ -188,7 +188,7 @@ canvas{max-width:100%}
     <div class="group">Vikt</div>
     <div class="card">
       <h2>Logga vikt</h2>
-      <div class="row"><input type="number" id="kg" step="0.1" min="30" max="250" placeholder="kg" style="width:120px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
+      <div class="row"><input type="text" id="kg" inputmode="decimal" autocomplete="off" placeholder="kg, t.ex. 98,5" style="width:150px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
       <div class="msg" id="kgMsg"></div>
     </div>
     <div class="grid sec" id="weightTiles"></div>
@@ -443,7 +443,7 @@ $('kgBtn').onclick = async () => {
   const j = await post('weight', {kg}, $('kgBtn'), $('kgMsg'));
   if (j) { $('kgMsg').textContent = `Sparat: ${fmt(j.kg, 1)} kg`; $('kgMsg').style.color = css('--good'); $('kg').value = ''; load(false); }
 };
-$('kg').onkeydown = e => e.key === 'Enter' && $('kgBtn').click();
+$('kg').addEventListener('keydown', e => { if (e.key === 'Enter') $('kgBtn').click(); });
 $('wBtn').onclick = async () => {
   const j = await post('workout', {sport: $('wSport').value, date: $('wDate').value}, $('wBtn'), $('wMsg'));
   if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good'); }
