@@ -58,6 +58,9 @@ textarea{width:100%;resize:vertical;min-height:60px}
 #load{padding:60px 0;text-align:center}
 label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
 label.f input,label.f select{width:100%;min-width:0}
+.pslot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:88px;border:1.5px dashed var(--line);border-radius:12px;font-size:26px;cursor:pointer;background-size:cover;background-position:center;position:relative;overflow:hidden}
+.pslot span{font-size:12px;color:var(--muted)}.pslot.has{border-style:solid;border-color:var(--accent)}.pslot.has span{background:var(--card);padding:1px 8px;border-radius:999px;color:var(--text)}
+.recipe ol{margin:6px 0 0;padding-left:20px}.recipe li{margin:3px 0}
 .food{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;border-bottom:.5px solid var(--line)}.food:last-child{border:0}
 .del{border:0;background:none;color:var(--bad);font-size:15px;min-width:44px;min-height:44px;cursor:pointer}
 canvas{max-width:100%}
@@ -180,6 +183,25 @@ canvas{max-width:100%}
       </div>
     </div>
     <div class="card sec"><h2>Ätit idag</h2><div id="eatTotals"></div><div id="eatList"></div></div>
+    <div class="card sec">
+      <h2>Vad blir det för mat?</h2>
+      <div class="s">Fota kylskåp, frys och skafferi. Du får tre rätter till hela familjen, och din portion fyller det som är kvar av dagens mål.</div>
+      <div class="grid sec" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <label class="pslot" data-i="0">🧊<span>Kylskåp</span><input type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="pslot" data-i="1">❄️<span>Frys</span><input type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="pslot" data-i="2">🥫<span>Skafferi</span><input type="file" accept="image/*" capture="environment" hidden></label>
+      </div>
+      <div class="grid sec" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+        <label class="f">Måltid<select id="pMeal"><option>middag</option><option>lunch</option><option>frukost</option><option>mellanmål</option></select></label>
+        <label class="f">Max tid<select id="pMin"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">60 min</option></select></label>
+      </div>
+      <label class="f sec">Vilka äter<input id="pEat" value="2 vuxna och 2 små barn"></label>
+      <input id="pNotes" class="sec" style="width:100%" placeholder="Önskemål (valfritt), t.ex. något varmt, ingen fisk">
+      <button class="btn big sec" id="pBtn">Föreslå mat</button>
+      <div class="msg" id="pMsg"></div>
+      <details id="pInvBox" class="hide sec"><summary class="s" id="pInvSum"></summary><div id="pInv" style="margin-top:6px"></div></details>
+      <div id="pRes"></div>
+    </div>
     <div class="group">Mål och förslag</div>
     <div id="kostFull"></div>
   </section>
@@ -566,6 +588,65 @@ function renderEaten() {
   if (n) $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal - sum('kcal'))} kcal kvar</div><div class="s">Ätit ${fmt(sum('kcal'))} av ${fmt(n.kcal)} · protein ${fmt(sum('protein_g'))} / ${n.protein_g} g</div>
     <div class="bar"><i style="width:${Math.min(100, 100 * sum('kcal') / n.kcal)}%"></i></div>`;
 }
+// --- Kylskåpscoach ---
+const pImgs = [null, null, null];
+let pRecipes = [];
+const ls = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage[k] ?? 'null'); localStorage[k] = JSON.stringify(v); } catch { return null; } };
+if (ls('pEat')) $('pEat').value = ls('pEat');
+function pInvShow(inv) {
+  if (!inv?.items?.length) return;
+  $('pInvBox').classList.remove('hide');
+  $('pInvSum').textContent = `Det här finns hemma (${inv.items.length} saker, inventerat ${inv.when})`;
+  $('pInv').innerHTML = inv.items.map(x => `<span class="chip">${esc(x)}</span>`).join('');
+}
+pInvShow(ls('pInv'));
+document.querySelectorAll('.pslot input').forEach(inp => inp.onchange = async e => {
+  const f = e.target.files[0], slot = inp.parentElement; if (!f) return;
+  try {
+    const url = await shrink(f);
+    pImgs[+slot.dataset.i] = url.split(',')[1];
+    slot.style.backgroundImage = `url(${url})`; slot.classList.add('has');
+  } catch (err) { $('pMsg').textContent = err.message; }
+});
+$('pBtn').onclick = async () => {
+  const images = pImgs.filter(Boolean), saved = ls('pInv');
+  if (!images.length && !saved?.items?.length) { $('pMsg').textContent = 'Fota minst ett av kylskåp, frys eller skafferi.'; return; }
+  const n = D?.nutrition, sum = k => EAT.reduce((a, r) => a + r[k], 0);
+  const left = n ? {kcal: n.kcal - sum('kcal'), protein_g: n.protein_g - sum('protein_g'), carbs_g: n.carbs_g - sum('carbs_g'), fat_g: n.fat_g - sum('fat_g')} : {};
+  ls('pEat', $('pEat').value);
+  $('pBtn').disabled = true; $('pMsg').style.color = '';
+  $('pMsg').textContent = images.length ? 'Inventerar och letar recept… (10–20 sekunder)' : 'Nya förslag från senaste inventeringen…';
+  try {
+    const {data, error} = await sb.functions.invoke('pantry-coach', {body: {images, inventory: images.length ? [] : saved.items,
+      left, meal: $('pMeal').value, minutes: +$('pMin').value, eaters: $('pEat').value, notes: $('pNotes').value}});
+    if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error || error.message);
+    if (images.length) { const inv = {items: data.inventory, when: new Date().toLocaleString('sv-SE', {dateStyle: 'short', timeStyle: 'short'})}; ls('pInv', inv); pInvShow(inv); }
+    pRecipes = data.recipes; pRender();
+    $('pMsg').textContent = images.length ? 'Klart! Nästa gång kan du trycka direkt för nya förslag utan att fota.' : '';
+    pImgs.fill(null); document.querySelectorAll('.pslot').forEach(s => { s.style.backgroundImage = ''; s.classList.remove('has'); s.querySelector('input').value = ''; });
+  } catch (e) { $('pMsg').textContent = 'Fel: ' + e.message; $('pMsg').style.color = css('--bad'); }
+  $('pBtn').disabled = false;
+};
+function pRender() {
+  $('pRes').innerHTML = pRecipes.map((r, i) => `<div class="card recipe sec" style="background:var(--bg)">
+    <div class="row" style="justify-content:space-between"><b style="font-size:17px">${esc(r.name)}</b><span class="chip">⏱ ${r.time_min} min</span></div>
+    <div class="s" style="margin-top:4px">${esc(r.why)}</div>
+    <div style="margin-top:8px">${r.uses.map(x => `<span class="chip">${esc(x)}</span>`).join('')}${r.missing.map(x => `<span class="chip" style="color:${css('--warn')}">köp: ${esc(x)}</span>`).join('')}</div>
+    <ol>${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="s" style="margin-top:6px">👶 ${esc(r.kid_tip)}</div>
+    <div style="margin-top:10px;padding-top:10px;border-top:.5px solid var(--line)"><b>Din portion:</b> ${esc(r.my_portion_desc)}
+      <div class="s">${fmt(r.my_portion.kcal)} kcal · P ${r.my_portion.protein_g} · K ${r.my_portion.carbs_g} · F ${r.my_portion.fat_g}</div></div>
+    <button class="btn sec" data-log="${i}" style="width:100%">Logga min portion</button></div>`).join('');
+}
+$('pRes').onclick = async e => {
+  const b = e.target.closest('[data-log]'); if (!b) return;
+  const r = pRecipes[+b.dataset.log];
+  b.disabled = true;
+  const {error} = await sb.from('food_log').insert({name: r.name.slice(0, 60), description: r.my_portion_desc, day: today(), ...r.my_portion});
+  if (error) { b.disabled = false; b.textContent = 'Fel: ' + error.message; return; }
+  b.textContent = '✓ Loggad'; loadEaten();
+};
+
 $('eatList').onclick = async e => {
   const b = e.target.closest('.del'); if (!b || !confirm('Ta bort måltiden?')) return;
   await sb.from('food_log').delete().eq('id', b.dataset.id); loadEaten();
