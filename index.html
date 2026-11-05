@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Garmin Dashboard</title>
 <link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Garmin">
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="theme-color" content="#0f1115">
@@ -61,7 +60,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
 <header>
   <div class="top">
     <h1>Garmin Dashboard</h1>
-    <div class="row"><span class="s" id="upd"></span><button class="btn ghost hide" id="homeBtn">📲 Hemskärm</button><button class="btn ghost" id="refresh">Uppdatera</button></div>
+    <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
   </div>
   <nav id="tabs">
     <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="rutter">Rutter</button>
@@ -316,14 +315,8 @@ $('wBtn').onclick = async () => {
   const j = await post('workout', {sport: $('wSport').value, date: $('wDate').value}, $('wBtn'), $('wMsg'));
   if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good'); }
 };
-// ponytail: iOS-hemskärmsappar har egen lagring och trasiga inputfält, så Safari lämnar över en refresh-token via #rt=
-const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
 async function start() {
-  let {data: {session}} = await sb.auth.getSession();
-  const rt = new URLSearchParams(location.hash.slice(1)).get('rt');
-  if (!session && rt && standalone) session = (await sb.auth.refreshSession({refresh_token: rt})).data.session;
-  if (session && rt && standalone) history.replaceState(null, '', location.pathname);
-  $('homeBtn').classList.toggle('hide', !session || standalone);
+  const {data: {session}} = await sb.auth.getSession();
   if (!session) { $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
   $('login').classList.add('hide'); $('load').classList.remove('hide');
   load(false);
@@ -336,13 +329,6 @@ const auth = async up => {
 };
 $('lIn').onclick = () => auth(false);
 $('lUp').onclick = () => auth(true);
-$('homeBtn').onclick = async () => {
-  const {data: {session}} = await sb.auth.getSession();
-  await sb.auth.signOut({scope: 'local'});
-  location.hash = 'rt=' + session.refresh_token;
-  $('homeBtn').classList.add('hide');
-  alert('Tryck nu på Dela → "Lägg till på hemskärmen". Appen loggas in automatiskt. (Safari loggas ut, det är meningen.)');
-};
 $('lShow').onchange = e => $('lPw').type = e.target.checked ? 'text' : 'password';
 $('lUp').onpointerdown = () => $('lPw').autocomplete = 'new-password';
 start();
