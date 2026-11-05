@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garmin Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Garmin">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#0f1115">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--chip:#eef2ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#2a2f38;--accent:#60a5fa;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--chip:#1e2533}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#2a2f38;--accent:#60a5fa;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--chip:#1e2533}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;background:var(--bg);z-index:5;padding:14px 16px 0;border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:1100px;margin:0 auto}
+h1{font-size:18px;margin:0}
+.muted{color:var(--muted)}
+nav{display:flex;gap:4px;overflow-x:auto;max-width:1100px;margin:10px auto 0}
+nav button{border:0;background:none;color:var(--muted);padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--text);border-color:var(--accent)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.v{font-size:26px;font-weight:700;margin-top:2px}
+.s{font-size:13px;color:var(--muted)}
+h2{font-size:16px;margin:0 0 10px}
+.sec{margin-top:16px}
+.bar{height:6px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.rec{border-left:4px solid var(--accent)}
+.rec.vila{border-color:var(--bad)}.rec.klar{border-color:var(--good)}.rec.latt{border-color:var(--good)}.rec.medel{border-color:var(--accent)}.rec.hard{border-color:var(--warn)}
+.chip{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
+ul{margin:6px 0 0;padding-left:18px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:12px}
+.tw{overflow-x:auto}
+input,select,.btn{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.btn{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600}.btn.ghost{background:none;color:var(--text);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{font-size:13px;margin-top:8px}
+.hide{display:none}
+.macro{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:10px 0}
+#load{padding:60px 0;text-align:center}
+.map{height:460px;border-radius:12px;border:1px solid var(--line);z-index:0}
+.rcard{cursor:pointer}.rcard.sel{outline:2px solid var(--accent)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Garmin Dashboard</h1>
+    <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
+  </div>
+  <nav id="tabs">
+    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="rutter">Rutter</button>
+  </nav>
+</header>
+<main>
+  <div id="load" class="muted">Hämtar data från Garmin…</div>
+  <div id="login" class="card hide" style="max-width:380px;margin:40px auto">
+    <h2>Logga in</h2>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input id="lEmail" type="email" autocomplete="username" placeholder="E-post">
+      <input id="lPw" type="password" autocomplete="current-password" placeholder="Lösenord">
+      <div class="row"><button class="btn" id="lIn">Logga in</button><button class="btn ghost" id="lUp">Skapa konto</button></div>
+      <div class="msg" id="lMsg"></div>
+    </div>
+  </div>
+
+  <section id="idag" class="tab hide">
+    <div class="card rec" id="recCard"></div>
+    <div class="grid sec" id="todayTiles"></div>
+    <div class="grid2 sec">
+      <div class="card"><h2>Puls idag</h2><canvas id="cHr"></canvas></div>
+      <div class="card"><h2>Kost idag</h2><div id="kostMini"></div></div>
+    </div>
+  </section>
+
+  <section id="somn" class="tab hide">
+    <div class="grid" id="sleepTiles"></div>
+    <div class="card sec"><h2>Analys</h2><ul id="sleepTips"></ul></div>
+    <div class="grid2 sec">
+      <div class="card"><h2>Sömnpoäng och timmar, 14 dagar</h2><canvas id="cSleep"></canvas></div>
+      <div class="card"><h2>Sömnfaser i procent</h2><canvas id="cPhases"></canvas></div>
+    </div>
+  </section>
+
+  <section id="traning" class="tab hide">
+    <div class="card rec" id="recCard2"></div>
+    <div class="card sec">
+      <h2>Lägg dagens rekommenderade pass i Garmin-kalendern</h2>
+      <div class="row">
+        <select id="wSport"><option value="cycling">Cykel</option><option value="running">Löpning</option></select>
+        <input type="date" id="wDate">
+        <button class="btn" id="wBtn">Skicka till klockan</button>
+      </div>
+      <div class="msg" id="wMsg"></div>
+      <div class="s">Passet styrs på pulszoner. Synka klockan för att få in det.</div>
+    </div>
+    <div class="grid2 sec">
+      <div class="card"><h2>Träningsminuter per dag</h2><canvas id="cLoad"></canvas></div>
+      <div class="card"><h2>Veckosammanfattning</h2><div class="grid" id="weekTiles"></div></div>
+    </div>
+    <div class="card sec"><h2>Senaste passen</h2><div class="tw"><table id="actTable"></table></div></div>
+  </section>
+
+  <section id="kost" class="tab hide"><div id="kostFull"></div></section>
+
+  <section id="vikt" class="tab hide">
+    <div class="card">
+      <h2>Logga vikt</h2>
+      <div class="row"><input type="number" id="kg" step="0.1" min="30" max="250" placeholder="kg" style="width:120px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
+      <div class="msg" id="kgMsg"></div>
+    </div>
+    <div class="grid sec" id="weightTiles"></div>
+    <div class="card sec"><h2>Viktkurva</h2><canvas id="cWeight"></canvas></div>
+  </section>
+
+  <section id="halsa" class="tab hide">
+    <div class="grid2">
+      <div class="card"><h2>Vilopuls</h2><canvas id="cRhr"></canvas></div>
+      <div class="card"><h2>HRV (natt)</h2><canvas id="cHrv"></canvas></div>
+      <div class="card"><h2>Body battery, högsta och lägsta</h2><canvas id="cBb"></canvas></div>
+      <div class="card"><h2>Stress, snitt</h2><canvas id="cStress"></canvas></div>
+      <div class="card"><h2>Steg</h2><canvas id="cSteps"></canvas></div>
+      <div class="card"><h2>Förbrukade kalorier</h2><canvas id="cKcal"></canvas></div>
+    </div>
+  </section>
+
+  <section id="rutter" class="tab hide">
+    <div class="card">
+      <h2>Bygg en slinga hemifrån</h2>
+      <div class="row" style="align-items:flex-end">
+        <label class="f">Typ<select id="rSport"><option value="run">Löpning</option><option value="trail">Trail/terräng</option><option value="bike">Cykel landsväg</option></select></label>
+        <label class="f">Distans (km)<input type="number" id="rKm" value="10" min="1" max="200" step="0.5" style="width:110px"></label>
+        <label class="f">Höjdmeter<input type="number" id="rGain" value="80" min="0" max="5000" step="10" style="width:110px"></label>
+        <button class="btn" id="rBtn">Bygg rutter</button>
+      </div>
+      <div class="msg" id="rMsg"></div>
+      <div class="s" id="rHome"></div>
+    </div>
+    <div class="grid2 sec" style="grid-template-columns:minmax(0,2fr) minmax(260px,1fr)">
+      <div id="rMap" class="map"></div>
+      <div id="rList"><div class="card s">Ange distans och höjdmeter och klicka på "Bygg rutter". Det tar cirka 20 sekunder.</div></div>
+    </div>
+    <div class="card sec hide" id="rProfCard"><h2>Höjdprofil</h2><div><canvas id="cProf"></canvas></div>
+      <div class="row" style="margin-top:10px"><input id="rName" placeholder="Namn på rutten" style="flex:1;min-width:180px"><button class="btn" id="rSave">Skicka till Garmin-klockan</button></div>
+      <div class="msg" id="rSaveMsg"></div></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (x, d = 0) => x == null ? '–' : Number(x).toLocaleString('sv-SE', {maximumFractionDigits: d, minimumFractionDigits: d});
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hm = h => h == null ? '–' : `${Math.floor(h)} h ${Math.round((h % 1) * 60)} min`;
+const day = d => new Date(d).toLocaleDateString('sv-SE', {weekday: 'short', day: 'numeric'});
+const TYPES = {running:'Löpning', indoor_cycling:'Inomhuscykel', cycling:'Cykel', walking:'Promenad', strength_training:'Styrka', hiking:'Vandring', treadmill_running:'Löpband', lap_swimming:'Simning'};
+let D, charts = {};
+
+function tile(k, v, s = '', pct) {
+  return `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div>` : ''}</div>`;
+}
+function chart(id, type, labels, datasets, opts = {}) {
+  charts[id]?.destroy();
+  const grid = css('--line'), txt = css('--muted');
+  charts[id] = new Chart($(id), {type, data: {labels, datasets}, options: {
+    responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+    plugins: {legend: {display: datasets.length > 1, labels: {color: txt}}},
+    scales: Object.assign({x: {grid: {display: false}, ticks: {color: txt, maxTicksLimit: 8}}, y: {grid: {color: grid}, ticks: {color: txt}}}, opts.scales || {}),
+    ...opts.extra}});
+  $(id).parentElement.style.height = '300px';
+}
+const ds = (label, data, color, extra = {}) => ({label, data, borderColor: color, backgroundColor: color, tension: .3, pointRadius: 2, ...extra});
+
+function recHtml(r) {
+  return `<div class="k">Dagens rekommendation</div><div class="v" style="font-size:20px">${esc(r.title)}</div>
+    <div>${esc(r.summary)}</div><div style="margin-top:6px">${r.reasons.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>
+    <div class="s" style="margin-top:6px">${fmt(r.week_minutes)} träningsminuter senaste 7 dagarna</div>`;
+}
+
+function render() {
+  const days = [...D.days].reverse(), t = D.days[0], labels = days.map(d => day(d.date));
+  const A = css('--accent'), G = css('--good'), W = css('--warn'), B = css('--bad'), M = css('--muted');
+  $('upd').textContent = `Uppdaterad ${D.updated}`;
+  for (const id of ['recCard', 'recCard2']) { $(id).className = `card rec ${D.recommendation.level}`; $(id).innerHTML = recHtml(D.recommendation); }
+
+  $('todayTiles').innerHTML = [
+    tile('Sömn', fmt(t.sleep.score), hm(t.sleep.hours)),
+    tile('Body battery', fmt(t.bb_now), `högsta ${fmt(t.bb_high)} · lägsta ${fmt(t.bb_low)}`, t.bb_now),
+    tile('Steg', fmt(t.steps), `mål ${fmt(t.step_goal)}`, t.step_goal ? 100 * t.steps / t.step_goal : null),
+    tile('Vilopuls', fmt(t.rhr), `7-dagarssnitt ${fmt(t.rhr_7d)}`),
+    tile('HRV', fmt(t.hrv.last), `${esc(t.hrv.status ?? '')} · normalt ${fmt(t.hrv.low)}–${fmt(t.hrv.high)}`),
+    tile('Stress', fmt(t.stress_avg), 'snitt idag'),
+    tile('Kalorier', fmt(t.kcal_total), `${fmt(t.kcal_active)} aktiva`),
+    tile('Intensitetsminuter', fmt(t.intensity_min), `veckomål ${fmt(t.intensity_goal)}`),
+  ].join('');
+  chart('cHr', 'line', D.hr_today.map(p => new Date(p[0]).toTimeString().slice(0, 5)), [ds('Puls', D.hr_today.map(p => p[1]), B, {pointRadius: 0, borderWidth: 1.5})]);
+
+  const n = D.nutrition;
+  if (n) {
+    const macro = `<div class="macro"><i style="width:${n.protein_g*4/n.kcal*100}%;background:${A}"></i><i style="width:${n.carbs_g*4/n.kcal*100}%;background:${G}"></i><i style="width:${n.fat_g*9/n.kcal*100}%;background:${W}"></i></div>
+      <div class="row s"><span style="color:${A}">● Protein ${n.protein_g} g</span><span style="color:${G}">● Kolhydrater ${n.carbs_g} g</span><span style="color:${W}">● Fett ${n.fat_g} g</span></div>`;
+    $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal)} kcal</div><div class="s">Förbrukning ${fmt(n.tdee)} kcal minus ${n.deficit} kcal</div>${macro}`;
+    $('kostFull').innerHTML = `<div class="grid">${tile('Dagens mål', fmt(n.kcal) + ' kcal', `förbrukning ${fmt(n.tdee)} kcal (snitt 7 dagar)`)}${tile('Protein', n.protein_g + ' g', '1,8 g per kg kroppsvikt')}${tile('Kolhydrater', n.carbs_g + ' g', 'mest runt träningen')}${tile('Fett', n.fat_g + ' g', '0,8 g per kg')}${tile('Förväntad takt', '−' + fmt(n.expected_kg_per_week, 2) + ' kg', 'per vecka')}</div>
+      <div class="card sec"><h2>Fördelning</h2>${macro}<div class="s" style="margin-top:8px">${esc(n.note)}</div></div>
+      <div class="card sec"><h2>Förslag på måltider</h2><div class="tw"><table><tr><th>Måltid</th><th>kcal</th><th>Protein</th><th>Idé</th></tr>${n.meals.map(m => `<tr><td>${m.name}</td><td>${fmt(m.kcal)}</td><td>${m.protein_g} g</td><td>${esc(m.idea)}</td></tr>`).join('')}</table></div></div>`;
+  } else $('kostMini').innerHTML = $('kostFull').innerHTML = '<div class="card">Logga din vikt för att få kostråd.</div>';
+
+  const sa = D.sleep_analysis;
+  $('sleepTiles').innerHTML = [
+    tile('Sömnpoäng i natt', fmt(sa.last_score), `snitt 7 dagar ${fmt(sa.avg_score_7d)}`, sa.last_score),
+    tile('Sömn i natt', hm(t.sleep.hours), `snitt ${hm(sa.avg_hours_7d)}`),
+    tile('Djupsömn', fmt(t.sleep.deep_pct) + ' %', 'bra nivå: 15–25 %'),
+    tile('REM', fmt(t.sleep.rem_pct) + ' %', 'bra nivå: 20–25 %'),
+    tile('Vaken', fmt(t.sleep.awake_min) + ' min', `andning ${fmt(t.sleep.resp)}/min`),
+    tile('Läggtid', sa.bedtime_spread_min != null ? '±' + sa.bedtime_spread_min + ' min' : '–', 'variation senaste veckan'),
+  ].join('');
+  $('sleepTips').innerHTML = sa.tips.map(x => `<li>${esc(x)}</li>`).join('');
+  chart('cSleep', 'bar', labels, [ds('Poäng', days.map(d => d.sleep.score), A, {type: 'line', yAxisID: 'y'}), ds('Timmar', days.map(d => d.sleep.hours), M + '66', {yAxisID: 'y1'})],
+    {scales: {y1: {position: 'right', grid: {display: false}, ticks: {color: M}}}});
+  chart('cPhases', 'bar', labels, [ds('Djup', days.map(d => d.sleep.deep_pct), A), ds('REM', days.map(d => d.sleep.rem_pct), G), ds('Lätt', days.map(d => d.sleep.light_pct), M + '55')],
+    {scales: {x: {stacked: true, grid: {display: false}, ticks: {color: M}}, y: {stacked: true, max: 100, ticks: {color: M}}}});
+
+  const acts = D.activities, wk = acts.filter(a => a.days_ago < 7);
+  const perDay = days.map(d => acts.filter(a => a.start.startsWith(d.date)).reduce((s, a) => s + a.minutes, 0));
+  chart('cLoad', 'bar', labels, [ds('Minuter', perDay, A)]);
+  $('weekTiles').innerHTML = [tile('Pass', wk.length, 'senaste 7 dagarna'), tile('Minuter', fmt(wk.reduce((s, a) => s + a.minutes, 0))),
+    tile('Distans', fmt(wk.reduce((s, a) => s + a.km, 0), 1) + ' km'), tile('Kalorier', fmt(wk.reduce((s, a) => s + (a.kcal || 0), 0)))].join('');
+  $('actTable').innerHTML = `<tr><th>Datum</th><th>Pass</th><th>Typ</th><th>Tid</th><th>km</th><th>Tempo</th><th>Puls</th><th>Effekt</th><th>kcal</th></tr>` +
+    acts.map(a => `<tr><td>${a.start.slice(0, 10)}</td><td>${esc(a.name)}</td><td>${TYPES[a.type] || esc(a.type)}</td><td>${a.minutes} min</td><td>${a.km ? fmt(a.km, 2) : '–'}</td>
+      <td>${a.pace && a.type?.includes('run') ? Math.floor(a.pace) + ':' + String(Math.round(a.pace % 1 * 60)).padStart(2, '0') + '/km' : '–'}</td>
+      <td>${fmt(a.hr_avg)}${a.hr_max ? ' / ' + fmt(a.hr_max) : ''}</td><td>${fmt(a.te, 1)}</td><td>${fmt(a.kcal)}</td></tr>`).join('');
+
+  const w = D.weights, last = w.at(-1);
+  $('weightTiles').innerHTML = [tile('Senaste vikt', last ? fmt(last.kg, 1) + ' kg' : '–', last?.date ?? ''),
+    tile('Trend', D.weight_trend_per_week != null ? (D.weight_trend_per_week > 0 ? '+' : '') + fmt(D.weight_trend_per_week, 2) + ' kg' : '–', 'per vecka'),
+    tile('Förändring', w.length > 1 ? fmt(last.kg - w[0].kg, 1) + ' kg' : '–', w.length ? 'sedan ' + w[0].date : '')].join('');
+  chart('cWeight', 'line', w.map(x => x.date), [ds('kg', w.map(x => x.kg), A)]);
+
+  chart('cRhr', 'line', labels, [ds('Vilopuls', days.map(d => d.rhr), B)]);
+  chart('cHrv', 'line', labels, [ds('HRV natt', days.map(d => d.hrv.last), A), ds('Veckosnitt', days.map(d => d.hrv.week), M, {borderDash: [4, 4]})]);
+  chart('cBb', 'bar', labels, [ds('Högsta', days.map(d => d.bb_high), G), ds('Lägsta', days.map(d => d.bb_low), W)]);
+  chart('cStress', 'bar', labels, [ds('Stress', days.map(d => d.stress_avg), W)]);
+  chart('cSteps', 'bar', labels, [ds('Steg', days.map(d => d.steps), A)]);
+  chart('cKcal', 'bar', labels, [ds('Aktiva', days.map(d => d.kcal_active), W), ds('Totalt', days.map(d => d.kcal_total), M + '55')]);
+}
+
+const sb = supabase.createClient('https://eiixsjcqcmgcullkjjhp.supabase.co', 'sb_publishable_7SINdhqvs28vFJ799dJ9Kw_EqHEfoVL');
+let shown = false;
+async function load(refresh) {
+  $('refresh').disabled = true; $('upd').textContent = refresh ? 'Hämtar från Garmin (ca 1 min)…' : 'Hämtar…';
+  try {
+    if (refresh) await cmd('refresh', {});
+    const {data, error} = await sb.from('garmin_dashboard').select('data,updated_at').single();
+    if (error) throw error;
+    if (!data.data) throw new Error('Ingen data ännu, tryck Uppdatera.');
+    D = data.data;
+    $('load').classList.add('hide');
+    if (!shown) { shown = true; show(localStorage.tab || 'idag'); }
+    render();
+    $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+  } catch (e) { $('load').classList.remove('hide'); $('load').textContent = 'Kunde inte hämta data: ' + e.message; $('upd').textContent = ''; }
+  $('refresh').disabled = false;
+}
+// ponytail: kommandon körs av GitHub Actions; vi pollar raden tills den är klar (max 4 min)
+async function cmd(kind, payload) {
+  const {data, error} = await sb.from('garmin_commands').insert({kind, payload}).select('id').single();
+  if (error) throw error;
+  for (let i = 0; i < 80; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const {data: c} = await sb.from('garmin_commands').select('status,result').eq('id', data.id).single();
+    if (c?.status === 'done') return c.result;
+    if (c?.status === 'error') throw new Error(c.result?.error || 'okänt fel');
+  }
+  throw new Error('Tog för lång tid, försök igen senare.');
+}
+function show(t) {
+  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('hide', s.id !== t));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  try { localStorage.tab = t } catch {}
+  Object.values(charts).forEach(c => c.resize());
+}
+async function post(kind, body, btn, msg) {
+  btn.disabled = true; msg.textContent = 'Skickar… (tar 30–60 s)'; msg.style.color = '';
+  try {
+    return await cmd(kind, body);
+  } catch (e) { msg.textContent = 'Fel: ' + e.message; msg.style.color = css('--bad'); }
+  finally { btn.disabled = false; }
+}
+
+$('tabs').onclick = e => e.target.dataset.t && show(e.target.dataset.t);
+$('refresh').onclick = () => load(true);
+$('wDate').value = new Date().toLocaleDateString('sv-SE');
+$('kgBtn').onclick = async () => {
+  const kg = parseFloat($('kg').value.replace(',', '.'));
+  if (!(kg >= 30 && kg <= 250)) { $('kgMsg').textContent = 'Skriv en vikt mellan 30 och 250 kg.'; return; }
+  const j = await post('weight', {kg}, $('kgBtn'), $('kgMsg'));
+  if (j) { $('kgMsg').textContent = `Sparat: ${fmt(j.kg, 1)} kg`; $('kgMsg').style.color = css('--good'); $('kg').value = ''; load(false); }
+};
+$('kg').onkeydown = e => e.key === 'Enter' && $('kgBtn').click();
+$('wBtn').onclick = async () => {
+  const j = await post('workout', {sport: $('wSport').value, date: $('wDate').value}, $('wBtn'), $('wMsg'));
+  if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good'); }
+};
+async function start() {
+  const {data: {session}} = await sb.auth.getSession();
+  if (!session) { $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
+  $('login').classList.add('hide'); $('load').classList.remove('hide');
+  load(false);
+}
+const auth = async up => {
+  const creds = {email: $('lEmail').value.trim(), password: $('lPw').value};
+  const {error} = await (up ? sb.auth.signUp(creds) : sb.auth.signInWithPassword(creds));
+  $('lMsg').textContent = error ? 'Fel: ' + error.message : up ? 'Konto skapat. Bekräfta via mejlet och logga sedan in här.' : '';
+  if (!error && !up) start();
+};
+$('lIn').onclick = () => auth(false);
+$('lUp').onclick = () => auth(true);
+$('lPw').onkeydown = e => e.key === 'Enter' && auth(false);
+start();
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && D && load(false));
+
+// --- Rutter ---
+let rMap, rLayer, rRoutes = [], rSel = -1, homeMarker, HOME;
+const tiles = () => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
+async function initRoutes() {
+  if (rMap) return rMap.invalidateSize();
+  HOME = (await sb.from('garmin_dashboard').select('home').single()).data.home;
+  rMap = L.map('rMap').setView([HOME.lat, HOME.lon], 13); tiles().addTo(rMap);
+  homeMarker = L.marker([HOME.lat, HOME.lon], {draggable: true}).addTo(rMap).bindTooltip('Start (dra eller klicka på kartan för att flytta)');
+  rLayer = L.layerGroup().addTo(rMap);
+  const setHome = async ll => {
+    homeMarker.setLatLng(ll);
+    HOME = {lat: ll.lat, lon: ll.lng, label: 'Egen startpunkt'};
+    await sb.from('garmin_dashboard').update({home: HOME}).eq('id', 1);
+    $('rHome').textContent = `Start: ${HOME.label} (${HOME.lat.toFixed(4)}, ${HOME.lon.toFixed(4)})`;
+  };
+  homeMarker.on('dragend', () => setHome(homeMarker.getLatLng()));
+  rMap.on('click', e => { if (!rRoutes.length || confirm('Flytta startpunkten hit?')) setHome(e.latlng); });
+  $('rHome').textContent = `Start: ${HOME.label}. Dra markören eller klicka på kartan för att flytta den.`;
+}
+function drawRoutes() {
+  rLayer.clearLayers();
+  const cols = [css('--accent'), css('--warn'), css('--good')];
+  rRoutes.forEach((r, i) => L.polyline(r.coords, {color: cols[i], weight: i === rSel ? 6 : 3, opacity: i === rSel || rSel < 0 ? .9 : .35})
+    .on('click', () => pick(i)).addTo(rLayer));
+  rMap.invalidateSize();
+  if (rRoutes.length) rMap.fitBounds(L.featureGroup(rLayer.getLayers()).getBounds(), {padding: [20, 20]});
+  $('rList').innerHTML = rRoutes.map((r, i) => `<div class="card rcard ${i === rSel ? 'sel' : ''}" data-i="${i}" style="margin-bottom:10px">
+    <div class="row" style="justify-content:space-between"><b><span class="sw" style="background:${cols[i]}"></span>Förslag ${i + 1}</b><span class="chip">${r.match} % träff</span></div>
+    <div class="v" style="font-size:20px">${fmt(r.km, 1)} km · ${fmt(r.gain)} hm</div>
+    <div class="s">Högsta punkt ${fmt(r.max_ele)} m · lägsta ${fmt(r.min_ele)} m</div></div>`).join('');
+  document.querySelectorAll('.rcard').forEach(c => c.onclick = () => pick(+c.dataset.i));
+}
+function pick(i) {
+  rSel = i; drawRoutes();
+  const r = rRoutes[i]; $('rProfCard').classList.remove('hide');
+  $('rName').value = `${({run: 'Löp', trail: 'Trail', bike: 'Cykel'})[$('rSport').value]} ${fmt(r.km, 1)} km ${r.gain} hm`;
+  $('rSaveMsg').textContent = '';
+  chart('cProf', 'line', r.profile.map(p => p[0].toFixed(1)), [ds('Höjd (m)', r.profile.map(p => p[1]), css('--accent'), {pointRadius: 0, fill: true, backgroundColor: css('--accent') + '33'})]);
+}
+$('rBtn').onclick = async () => {
+  const km = +$('rKm').value, gain = +$('rGain').value;
+  $('rList').innerHTML = '<div class="card s">Letar efter slingor som matchar… cirka en minut.</div>';
+  const j = await post('routes', {km, gain, sport: $('rSport').value, lat: HOME.lat, lon: HOME.lon}, $('rBtn'), $('rMsg'));
+  if (!j) return;
+  $('rMsg').textContent = gain / km > 15 ? 'Holmsund är ganska platt. Med många höjdmeter per km blir träffen sämre, så prova en längre distans.' : '';
+  rRoutes = j.routes; rSel = -1; drawRoutes(); if (rRoutes.length) pick(0);
+};
+$('rSave').onclick = async () => {
+  const r = rRoutes[rSel];
+  const j = await post('course', {name: $('rName').value, coords: r.coords, sport: $('rSport').value}, $('rSave'), $('rSaveMsg'));
+  if (j) { $('rSaveMsg').textContent = `Sparad som bana i Garmin Connect: "${j.name}". Synka klockan och hitta den under Navigering → Banor.`; $('rSaveMsg').style.color = css('--good'); }
+};
+
+const _show = show;
+show = t => { _show(t); if (t === 'rutter') initRoutes(); };
+</script>
+</body>
+</html>
