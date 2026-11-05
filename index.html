@@ -2,7 +2,7 @@
 <html lang="sv">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garmin Dashboard</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-title" content="Garmin">
@@ -11,58 +11,64 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--good:#16a34a;--warn:#d97706;--bad:#dc2626;--chip:#eef2ff}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#2a2f38;--accent:#60a5fa;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--chip:#1e2533}}
-:root[data-theme="dark"]{--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ad;--line:#2a2f38;--accent:#60a5fa;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--chip:#1e2533}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-header{position:sticky;top:0;background:var(--bg);z-index:5;padding:14px 16px 0;border-bottom:1px solid var(--line)}
-.top{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:1100px;margin:0 auto}
-h1{font-size:18px;margin:0}
-.muted{color:var(--muted)}
-nav{display:flex;gap:4px;overflow-x:auto;max-width:1100px;margin:10px auto 0}
-nav button{border:0;background:none;color:var(--muted);padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
-nav button.on{color:var(--text);border-color:var(--accent)}
-main{max-width:1100px;margin:0 auto;padding:16px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
-.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.v{font-size:26px;font-weight:700;margin-top:2px}
-.s{font-size:13px;color:var(--muted)}
-h2{font-size:16px;margin:0 0 10px}
-.sec{margin-top:16px}
-.bar{height:6px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
-.rec{border-left:4px solid var(--accent)}
+:root{--bg:#f2f2f7;--card:#fff;--text:#000;--muted:#6c6c70;--line:#e5e5ea;--accent:#007aff;--good:#28a745;--warn:#e08600;--bad:#e5352b;--chip:#e9effd;--fill:#e5e5ea;--bar:rgba(249,249,251,.88)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88)}}
+:root[data-theme="dark"]{--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bar);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;border-bottom:.5px solid var(--line)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:760px;margin:0 auto}
+h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.02em}
+#upd{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.iconbtn{width:44px;height:44px;border-radius:22px;border:0;background:var(--fill);color:var(--accent);display:grid;place-items:center;cursor:pointer}
+.iconbtn:disabled{opacity:.5}.iconbtn:disabled svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+nav#tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:var(--bar);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--line);padding:4px 0 calc(env(safe-area-inset-bottom) + 4px)}
+nav#tabs button{flex:1;min-height:50px;border:0;background:none;color:var(--muted);font:600 10px/1.2 inherit;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
+nav#tabs button svg{width:24px;height:24px}
+nav#tabs button.on{color:var(--accent)}
+main{max-width:760px;margin:0 auto;padding:16px 16px calc(env(safe-area-inset-bottom) + 90px)}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.card{background:var(--card);border-radius:16px;padding:16px}
+.k{font-size:13px;color:var(--muted);font-weight:600}
+.v{font-size:28px;font-weight:700;margin-top:2px;font-family:ui-rounded,-apple-system,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.s{font-size:14px;color:var(--muted)}
+h2{font-size:17px;font-weight:600;margin:0 0 10px}
+.group{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:26px 4px 8px}
+.sec{margin-top:12px}
+.bar{height:8px;background:var(--fill);border-radius:4px;margin-top:10px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.rec{border-left:5px solid var(--accent)}
 .rec.vila{border-color:var(--bad)}.rec.klar{border-color:var(--good)}.rec.latt{border-color:var(--good)}.rec.medel{border-color:var(--accent)}.rec.hard{border-color:var(--warn)}
-.chip{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
-ul{margin:6px 0 0;padding-left:18px}
+.chip{display:inline-block;background:var(--chip);border-radius:999px;padding:4px 10px;font-size:13px;margin:3px 4px 3px 0}
+ul{margin:6px 0 0;padding-left:20px}li{margin:4px 0}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:12px}
+th,td{text-align:left;padding:10px 6px;border-bottom:.5px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:12px}
 .tw{overflow-x:auto}
-input,select,.btn{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
-.btn{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600}.btn.ghost{background:none;color:var(--text);border:1px solid var(--line)}
+input,select,textarea,.btn{font:inherit;font-size:16px;min-height:44px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+textarea{width:100%;resize:vertical;min-height:60px}
+.btn{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600}.btn.ghost{background:var(--fill);color:var(--accent);border:0}
+.btn.big{width:100%;min-height:50px;font-size:17px;border-radius:12px}
 .btn:disabled{opacity:.5}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.msg{font-size:13px;margin-top:8px}
-.hide{display:none}
+.msg{font-size:14px;margin-top:8px}
+.hide{display:none!important}
 .macro{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:10px 0}
 #load{padding:60px 0;text-align:center}
-.map{height:460px;border-radius:12px;border:1px solid var(--line);z-index:0}
-.rcard{cursor:pointer}.rcard.sel{outline:2px solid var(--accent)}
-.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
-label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+label.f input,label.f select{width:100%;min-width:0}
+.food{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;border-bottom:.5px solid var(--line)}.food:last-child{border:0}
+.del{border:0;background:none;color:var(--bad);font-size:15px;min-width:44px;min-height:44px;cursor:pointer}
+canvas{max-width:100%}
 </style>
 </head>
 <body>
 <header>
   <div class="top">
-    <h1>Garmin Dashboard</h1>
-    <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
+    <div><h1 id="title">Idag</h1><span id="upd"></span></div>
+    <button class="iconbtn" id="refresh" aria-label="Uppdatera från Garmin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button>
   </div>
-  <nav id="tabs">
-    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="strava">Strava</button>
-  </nav>
 </header>
 <main>
   <div id="load" class="muted">Hämtar data från Garmin…</div>
@@ -87,6 +93,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   </section>
 
   <section id="somn" class="tab hide">
+    <div class="group" style="margin-top:4px">Sömn</div>
     <div class="grid" id="sleepTiles"></div>
     <div class="card sec"><h2>Analys</h2><ul id="sleepTips"></ul></div>
     <div class="grid2 sec">
@@ -138,6 +145,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   </section>
 
   <section id="form" class="tab hide">
+    <div class="group">Form och prognos</div>
     <div class="grid" id="formTiles"></div>
     <div class="card sec"><h2>Fitness, trötthet och form, 120 dagar</h2><canvas id="cFit"></canvas>
       <div class="s" style="margin-top:8px"><b>Fitness</b> är din belastning de senaste ~6 veckorna (höjs långsamt). <b>Trötthet</b> är senaste veckan. <b>Form</b> = fitness − trötthet: under −20 är du överbelastad, −10 till −30 bygger kondition, över +5 är du utvilad och redo att tävla. Belastningen räknas på puls, så cykel och skidor räknas lika som löpning.</div></div>
@@ -148,9 +156,34 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     </div>
   </section>
 
-  <section id="kost" class="tab hide"><div id="kostFull"></div></section>
+  <section id="kost" class="tab hide">
+    <div class="card">
+      <h2>Logga måltid</h2>
+      <label class="btn big" style="display:flex;align-items:center;justify-content:center;gap:8px">📷 Ta foto eller välj bild
+        <input type="file" id="fPhoto" accept="image/*" capture="environment" hidden></label>
+      <img id="fPrev" class="hide" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-top:10px">
+      <textarea id="fDesc" class="sec" rows="2" placeholder="Beskrivning (valfritt), t.ex. 200 g kyckling stekt i olja, 1 dl ris"></textarea>
+      <button class="btn big sec" id="fBtn">Uppskatta</button>
+      <div class="msg" id="fMsg"></div>
+      <div id="fRes" class="hide sec">
+        <input id="fName" style="width:100%" aria-label="Namn">
+        <div class="s" id="fItems" style="margin:8px 2px"></div>
+        <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+          <label class="f">kcal<input id="fKcal" type="number" inputmode="numeric"></label>
+          <label class="f">Protein<input id="fP" type="number" inputmode="numeric"></label>
+          <label class="f">Kolh.<input id="fC" type="number" inputmode="numeric"></label>
+          <label class="f">Fett<input id="fF" type="number" inputmode="numeric"></label>
+        </div>
+        <button class="btn big sec" id="fSave">Spara</button>
+      </div>
+    </div>
+    <div class="card sec"><h2>Ätit idag</h2><div id="eatTotals"></div><div id="eatList"></div></div>
+    <div class="group">Mål och förslag</div>
+    <div id="kostFull"></div>
+  </section>
 
   <section id="vikt" class="tab hide">
+    <div class="group">Vikt</div>
     <div class="card">
       <h2>Logga vikt</h2>
       <div class="row"><input type="number" id="kg" step="0.1" min="30" max="250" placeholder="kg" style="width:120px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
@@ -161,6 +194,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   </section>
 
   <section id="halsa" class="tab hide">
+    <div class="group">Trender, 14 dagar</div>
     <div class="grid2">
       <div class="card"><h2>Vilopuls</h2><canvas id="cRhr"></canvas></div>
       <div class="card"><h2>HRV (natt)</h2><canvas id="cHrv"></canvas></div>
@@ -180,6 +214,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   </section>
 
 </main>
+<nav id="tabs"><button data-t="idag" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>Idag</button><button data-t="traning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4.5" r="2"/><path d="m8 21 3-6 3 3v3M6 12l3-4 4 1 3 3h3M11 15l2-6"/></svg>Träning</button><button data-t="kost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 4 0V3M9 11v10M17 3c-2 0-3 3-3 7h3v11"/></svg>Kost</button><button data-t="halsa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Hälsa</button><button data-t="strava"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Strava</button></nav>
 <script>
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -201,7 +236,7 @@ function chart(id, type, labels, datasets, opts = {}) {
     plugins: {legend: {display: datasets.length > 1, labels: {color: txt}}},
     scales: Object.assign({x: {grid: {display: false}, ticks: {color: txt, maxTicksLimit: 8}}, y: {grid: {color: grid}, ticks: {color: txt}}}, opts.scales || {}),
     ...opts.extra}});
-  $(id).parentElement.style.height = '300px';
+  $(id).parentElement.style.height = '230px';
 }
 const ds = (label, data, color, extra = {}) => ({label, data, borderColor: color, backgroundColor: color, tension: .3, pointRadius: 2, ...extra});
 
@@ -320,6 +355,7 @@ async function load(refresh) {
     $('load').classList.add('hide');
     if (!shown) { shown = true; show(localStorage.tab || 'idag'); }
     render();
+    loadEaten();
     $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'});
   } catch (e) { $('load').classList.remove('hide'); $('load').textContent = 'Kunde inte hämta data: ' + e.message; $('upd').textContent = ''; }
   $('refresh').disabled = false;
@@ -336,10 +372,15 @@ async function cmd(kind, payload) {
   }
   throw new Error('Tog för lång tid, försök igen senare.');
 }
+const GROUPS = {idag: ['idag'], traning: ['traning', 'form'], kost: ['kost', 'vikt'], halsa: ['somn', 'halsa'], strava: ['strava']};
+const TITLES = {idag: 'Idag', traning: 'Träning', kost: 'Kost', halsa: 'Hälsa', strava: 'Strava'};
 function show(t) {
-  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('hide', s.id !== t));
+  if (!GROUPS[t]) t = 'idag';
+  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('hide', !GROUPS[t].includes(s.id)));
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('title').textContent = TITLES[t];
   try { localStorage.tab = t } catch {}
+  window.scrollTo(0, 0);
   Object.values(charts).forEach(c => c.resize());
 }
 async function post(kind, body, btn, msg) {
@@ -350,7 +391,7 @@ async function post(kind, body, btn, msg) {
   finally { btn.disabled = false; }
 }
 
-$('tabs').onclick = e => e.target.dataset.t && show(e.target.dataset.t);
+$('tabs').onclick = e => { const b = e.target.closest('button'); if (b) show(b.dataset.t); };
 $('refresh').onclick = () => load(true);
 $('wDate').value = new Date().toLocaleDateString('sv-SE');
 $('kgBtn').onclick = async () => {
@@ -419,6 +460,72 @@ $('cSave').onclick = async () => {
   const {error} = await sb.from('garmin_dashboard').update({templates: TPL}).eq('id', 1);
   $('cMsg').textContent = error ? 'Fel: ' + error.message : `Mallen "${p.name}" sparad.`; $('cMsg').style.color = error ? css('--bad') : css('--good');
   fillTpl(); $('cTpl').value = TPL.length - 1;
+};
+
+// --- Matlogg ---
+let fImg = null, EAT = [];
+const today = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'Europe/Stockholm'});
+function shrink(file) {
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = img.width * k; c.height = img.height * k;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      ok(c.toDataURL('image/jpeg', .8));
+    };
+    img.onerror = () => fail(new Error('Kunde inte läsa bilden'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+$('fPhoto').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const url = await shrink(f); fImg = url.split(',')[1]; $('fPrev').src = url; $('fPrev').classList.remove('hide'); $('fMsg').textContent = ''; }
+  catch (err) { $('fMsg').textContent = err.message; }
+};
+$('fBtn').onclick = async () => {
+  const description = $('fDesc').value.trim();
+  if (!fImg && !description) { $('fMsg').textContent = 'Ta ett foto eller skriv en beskrivning.'; return; }
+  $('fBtn').disabled = true; $('fMsg').style.color = ''; $('fMsg').textContent = 'Uppskattar… (några sekunder)';
+  try {
+    const {data, error} = await sb.functions.invoke('food-analyze', {body: {image: fImg, description}});
+    if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error || error.message);
+    $('fName').value = data.name; $('fItems').textContent = data.items.join(' · ') + ` (säkerhet: ${data.confidence})`;
+    $('fKcal').value = data.kcal; $('fP').value = data.protein_g; $('fC').value = data.carbs_g; $('fF').value = data.fat_g;
+    $('fRes').classList.remove('hide'); $('fMsg').textContent = 'Justera vid behov och spara.';
+  } catch (e) { $('fMsg').textContent = 'Fel: ' + e.message; $('fMsg').style.color = css('--bad'); }
+  $('fBtn').disabled = false;
+};
+$('fSave').onclick = async () => {
+  const row = {name: $('fName').value.trim() || 'Måltid', description: $('fDesc').value.trim() || null, day: today(),
+    kcal: +$('fKcal').value || 0, protein_g: +$('fP').value || 0, carbs_g: +$('fC').value || 0, fat_g: +$('fF').value || 0};
+  $('fSave').disabled = true;
+  const {error} = await sb.from('food_log').insert(row);
+  $('fSave').disabled = false;
+  if (error) { $('fMsg').textContent = 'Fel: ' + error.message; $('fMsg').style.color = css('--bad'); return; }
+  fImg = null; $('fPhoto').value = ''; $('fDesc').value = ''; $('fPrev').classList.add('hide'); $('fRes').classList.add('hide');
+  $('fMsg').textContent = `Sparat: ${row.name}`; $('fMsg').style.color = css('--good');
+  loadEaten();
+};
+async function loadEaten() {
+  const {data} = await sb.from('food_log').select('*').eq('day', today()).order('created_at');
+  EAT = data || []; renderEaten();
+}
+function renderEaten() {
+  const n = D?.nutrition, sum = k => EAT.reduce((a, r) => a + r[k], 0);
+  const row = (label, k, goal, unit, color) => `<div style="margin-bottom:10px"><div class="row" style="justify-content:space-between"><b>${label}</b><span class="s">${fmt(sum(k))}${goal ? ' / ' + fmt(goal) : ''} ${unit}</span></div>
+    <div class="bar"><i style="width:${goal ? Math.min(100, 100 * sum(k) / goal) : 0}%;background:${color}"></i></div></div>`;
+  const html = row('Kalorier', 'kcal', n?.kcal, 'kcal', css('--accent')) + row('Protein', 'protein_g', n?.protein_g, 'g', css('--good')) +
+    row('Kolhydrater', 'carbs_g', n?.carbs_g, 'g', css('--warn')) + row('Fett', 'fat_g', n?.fat_g, 'g', css('--bad'));
+  $('eatTotals').innerHTML = html;
+  $('eatList').innerHTML = EAT.map(r => `<div class="food"><div><b>${esc(r.name)}</b><div class="s">${fmt(r.kcal)} kcal · P ${r.protein_g} · K ${r.carbs_g} · F ${r.fat_g}</div></div><button class="del" data-id="${r.id}" aria-label="Ta bort ${esc(r.name)}">Ta bort</button></div>`).join('') || '<div class="s">Inget loggat ännu idag.</div>';
+  if (n) $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal - sum('kcal'))} kcal kvar</div><div class="s">Ätit ${fmt(sum('kcal'))} av ${fmt(n.kcal)} · protein ${fmt(sum('protein_g'))} / ${n.protein_g} g</div>
+    <div class="bar"><i style="width:${Math.min(100, 100 * sum('kcal') / n.kcal)}%"></i></div>`;
+}
+$('eatList').onclick = async e => {
+  const b = e.target.closest('.del'); if (!b || !confirm('Ta bort måltiden?')) return;
+  await sb.from('food_log').delete().eq('id', b.dataset.id); loadEaten();
 };
 
 async function start() {
