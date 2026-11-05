@@ -63,7 +63,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     <div class="row"><span class="s" id="upd"></span><button class="btn ghost" id="refresh">Uppdatera</button></div>
   </div>
   <nav id="tabs">
-    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="rutter">Rutter</button>
+    <button data-t="idag" class="on">Idag</button><button data-t="somn">Sömn</button><button data-t="traning">Träning</button><button data-t="form">Form</button><button data-t="kost">Kost</button><button data-t="vikt">Vikt</button><button data-t="halsa">Hälsa</button><button data-t="rutter">Rutter</button>
   </nav>
 </header>
 <main>
@@ -109,11 +109,45 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       <div class="msg" id="wMsg"></div>
       <div class="s">Passet styrs på pulszoner. Synka klockan för att få in det.</div>
     </div>
+    <div class="card sec">
+      <h2>Skicka eget pass</h2>
+      <div class="row" style="align-items:flex-end">
+        <label class="f">Mall<select id="cTpl"></select></label>
+        <label class="f">Sport<select id="cSport"><option value="running">Löpning</option><option value="cycling">Cykel</option></select></label>
+        <label class="f">Namn<input id="cName" style="width:150px"></label>
+      </div>
+      <div class="row sec" style="align-items:flex-end">
+        <label class="f">Uppvärmning<input id="cWu" style="width:90px" placeholder="1.5 km"></label>
+        <label class="f">Antal<input id="cReps" type="number" min="1" max="50" style="width:70px"></label>
+        <label class="f">× Arbete<input id="cWork" style="width:90px" placeholder="800 m"></label>
+        <label class="f">Mål<select id="cTk"><option value="pace">Tempo</option><option value="zone">Pulszon</option><option value="none">Inget</option></select></label>
+        <label class="f" id="cPaceL">Tempo (min/km)<input id="cPace" style="width:110px" placeholder="4:50-5:10"></label>
+        <label class="f hide" id="cZoneL">Zon<select id="cZone"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <label class="f">Vila<input id="cRest" style="width:90px" placeholder="200 m"></label>
+        <label class="f">Nedvarvning<input id="cCd" style="width:90px" placeholder="1 km"></label>
+      </div>
+      <div class="row sec">
+        <input type="date" id="cDate"><button class="btn" id="cBtn">Skicka till klockan</button><button class="btn ghost" id="cSave">Spara som mall</button>
+      </div>
+      <div class="msg" id="cMsg"></div>
+      <div class="s">Skriv distans som "800 m" / "1.5 km" eller tid som "4 min" / "90 s". Tomt fält = hoppas över.</div>
+    </div>
     <div class="grid2 sec">
       <div class="card"><h2>Träningsminuter per dag</h2><canvas id="cLoad"></canvas></div>
       <div class="card"><h2>Veckosammanfattning</h2><div class="grid" id="weekTiles"></div></div>
     </div>
     <div class="card sec"><h2>Senaste passen</h2><div class="tw"><table id="actTable"></table></div></div>
+  </section>
+
+  <section id="form" class="tab hide">
+    <div class="grid" id="formTiles"></div>
+    <div class="card sec"><h2>Fitness, trötthet och form, 120 dagar</h2><canvas id="cFit"></canvas>
+      <div class="s" style="margin-top:8px"><b>Fitness</b> är din belastning de senaste ~6 veckorna (höjs långsamt). <b>Trötthet</b> är senaste veckan. <b>Form</b> = fitness − trötthet: under −20 är du överbelastad, −10 till −30 bygger kondition, över +5 är du utvilad och redo att tävla. Belastningen räknas på puls, så cykel och skidor räknas lika som löpning.</div></div>
+    <div class="grid2 sec">
+      <div class="card"><h2>Loppprognos</h2><div class="tw"><table id="raceTable"></table></div>
+        <div class="s" style="margin-top:8px" id="raceNote"></div></div>
+      <div class="card"><h2>VO2max (Garmin)</h2><canvas id="cVo2"></canvas></div>
+    </div>
   </section>
 
   <section id="kost" class="tab hide"><div id="kostFull"></div></section>
@@ -185,10 +219,36 @@ function chart(id, type, labels, datasets, opts = {}) {
 }
 const ds = (label, data, color, extra = {}) => ({label, data, borderColor: color, backgroundColor: color, tension: .3, pointRadius: 2, ...extra});
 
+const SPORT = {running: '🏃 Löpning', cycling: '🚴 Cykel inne', skiing: '⛷️ Skidor'};
 function recHtml(r) {
-  return `<div class="k">Dagens rekommendation</div><div class="v" style="font-size:20px">${esc(r.title)}</div>
+  const w = D.weather;
+  return `<div class="row" style="justify-content:space-between"><div class="k">Dagens rekommendation</div>
+    <div class="s">${r.sport ? SPORT[r.sport] : ''}${w ? ` · ${fmt(w.temp, 0)}°C kl ${w.hour}${w.snow_m ? ` · ${fmt(w.snow_m * 100)} cm snö` : ''}` : ''}</div></div>
+    <div class="v" style="font-size:20px">${esc(r.title)}</div>
     <div>${esc(r.summary)}</div><div style="margin-top:6px">${r.reasons.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>
     <div class="s" style="margin-top:6px">${fmt(r.week_minutes)} träningsminuter senaste 7 dagarna</div>`;
+}
+
+const clock = s => s == null ? '–' : (s = Math.round(s), s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}` : Math.floor(s / 60)) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+function renderForm() {
+  const F = D.fitness; if (!F) return;
+  const s = F.series, last = s[s.length - 1], wk = s[s.length - 8];
+  const formTxt = last.form < -30 ? 'överbelastad, vila mer' : last.form < -10 ? 'bygger kondition' : last.form < 5 ? 'neutral' : 'utvilad, redo att tävla';
+  const v = F.vo2max, vNow = v.length ? v[v.length - 1].v : null;
+  $('formTiles').innerHTML = [
+    tile('Fitness', fmt(last.fitness, 1), `${last.fitness >= wk.fitness ? '▲' : '▼'} ${fmt(Math.abs(last.fitness - wk.fitness), 1)} senaste veckan`),
+    tile('Trötthet', fmt(last.fatigue, 1), 'senaste 7 dagarna'),
+    tile('Form', fmt(last.form, 1), formTxt),
+    tile('VO2max', fmt(vNow, 1), v.length > 1 ? `${vNow >= v[0].v ? '▲' : '▼'} ${fmt(Math.abs(vNow - v[0].v), 1)} sedan ${v[0].date}` : 'Garmin'),
+  ].join('');
+  chart('cFit', 'bar', s.map(d => d.date.slice(5)), [
+    ds('Fitness', s.map(d => d.fitness), css('--accent'), {type: 'line', pointRadius: 0, borderWidth: 2.5}),
+    ds('Trötthet', s.map(d => d.fatigue), css('--bad'), {type: 'line', pointRadius: 0, borderWidth: 1.5}),
+    ds('Form', s.map(d => d.form), css('--good') + '66', {borderColor: 'transparent'})]);
+  chart('cVo2', 'line', v.map(x => x.date.slice(5)), [ds('VO2max', v.map(x => x.v), css('--accent'))]);
+  $('raceTable').innerHTML = '<tr><th>Lopp</th><th>Prognos</th><th>Tempo</th><th>Min modell</th><th>Garmin</th></tr>' +
+    F.races.map(r => `<tr><td>${r.name}</td><td><b>${clock(r.blend)}</b></td><td>${r.blend ? clock(r.blend / ({'5 km': 5, '10 km': 10, 'Halvmaraton': 21.0975})[r.name]) + '/km' : '–'}</td><td>${clock(r.own)}</td><td>${clock(r.garmin)}</td></tr>`).join('');
+  $('raceNote').innerHTML = `Prognosen är snittet av två modeller. <b>Min modell</b> räknar ut ett VDOT på ${fmt(F.vdot, 1)} från dina snabbaste 5/10 km-sträckor senaste 8 veckorna (${F.vdot_n} st), justerat för hur hög pulsen var (maxpuls ${fmt(F.hr_max)}). Den räknas sedan om till lopptider med Daniels formel. <b>Garmin</b> är klockans egen prognos. Ett lopp i utvilad form (form över +5) brukar gå 1–3 % snabbare.`;
 }
 
 function render() {
@@ -196,6 +256,8 @@ function render() {
   const A = css('--accent'), G = css('--good'), W = css('--warn'), B = css('--bad'), M = css('--muted');
   $('upd').textContent = `Uppdaterad ${D.updated}`;
   for (const id of ['recCard', 'recCard2']) { $(id).className = `card rec ${D.recommendation.level}`; $(id).innerHTML = recHtml(D.recommendation); }
+  if (D.recommendation.sport === 'cycling' || D.recommendation.sport === 'running') $('wSport').value = D.recommendation.sport;
+  renderForm();
 
   $('todayTiles').innerHTML = [
     tile('Sömn', fmt(t.sleep.score), hm(t.sleep.hours)),
@@ -264,8 +326,9 @@ async function load(refresh) {
   $('refresh').disabled = true; $('upd').textContent = refresh ? 'Hämtar från Garmin (ca 1 min)…' : 'Hämtar…';
   try {
     if (refresh) await cmd('refresh', {});
-    const {data, error} = await sb.from('garmin_dashboard').select('data,updated_at').single();
+    const {data, error} = await sb.from('garmin_dashboard').select('data,updated_at,templates').single();
     if (error) throw error;
+    TPL = data.templates || []; fillTpl();
     if (!data.data) throw new Error('Ingen data ännu, tryck Uppdatera.');
     D = data.data;
     $('load').classList.add('hide');
@@ -315,6 +378,63 @@ $('wBtn').onclick = async () => {
   const j = await post('workout', {sport: $('wSport').value, date: $('wDate').value}, $('wBtn'), $('wMsg'));
   if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good'); }
 };
+// --- Eget pass ---
+let TPL = [];
+const parseDur = s => {
+  s = (s || '').trim().toLowerCase().replace(',', '.'); if (!s) return {type: 'time', value: 0};
+  let m;
+  if ((m = s.match(/^(\d+):(\d{1,2})$/))) return {type: 'time', value: +m[1] * 60 + +m[2]};
+  if ((m = s.match(/^([\d.]+)\s*(km|m|min|s|sek)?$/))) {
+    const n = +m[1], u = m[2] || (n < 50 ? 'km' : 'm');
+    return u === 'km' ? {type: 'distance', value: n * 1000} : u === 'm' ? {type: 'distance', value: n}
+      : u === 'min' ? {type: 'time', value: n * 60} : {type: 'time', value: n};
+  }
+  throw new Error(`Förstår inte "${s}"`);
+};
+const showDur = d => !d || !+d.value ? '' : d.type === 'distance' ? (d.value >= 1000 ? `${d.value / 1000} km` : `${d.value} m`) : (d.value % 60 ? `${d.value} s` : `${d.value / 60} min`);
+const mmssToSec = s => { const [a, b] = s.trim().split(':'); return +a * 60 + +(b || 0); };
+function fillTpl() {
+  const cur = $('cTpl').value;
+  $('cTpl').innerHTML = '<option value="">– välj –</option>' + TPL.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
+  $('cTpl').value = cur;
+}
+function setTk() { $('cPaceL').classList.toggle('hide', $('cTk').value !== 'pace'); $('cZoneL').classList.toggle('hide', $('cTk').value !== 'zone'); }
+$('cTk').onchange = setTk;
+$('cTpl').onchange = () => {
+  const t = TPL[$('cTpl').value]; if (!t) return;
+  $('cName').value = t.name; $('cSport').value = t.sport; $('cWu').value = showDur(t.warmup); $('cReps').value = t.reps;
+  $('cWork').value = showDur(t.work); $('cRest').value = showDur(t.rest); $('cCd').value = showDur(t.cooldown);
+  const g = t.work.target || {kind: 'none'}; $('cTk').value = g.kind;
+  if (g.kind === 'pace') $('cPace').value = `${clock(g.fast)}-${clock(g.slow)}`;
+  if (g.kind === 'zone') $('cZone').value = g.zone;
+  setTk();
+};
+function readCustom() {
+  const work = parseDur($('cWork').value);
+  if (!+work.value) throw new Error('Fyll i arbete, t.ex. "800 m" eller "4 min".');
+  const k = $('cTk').value;
+  if (k === 'pace') {
+    const [a, b] = $('cPace').value.split(/[-–]/).map(mmssToSec);
+    if (!(a > 0 && b > 0)) throw new Error('Tempo som "4:50-5:10".');
+    work.target = {kind: 'pace', fast: Math.min(a, b), slow: Math.max(a, b)};
+  } else if (k === 'zone') work.target = {kind: 'zone', zone: +$('cZone').value};
+  return {name: $('cName').value.trim() || 'Eget pass', sport: $('cSport').value, reps: +$('cReps').value || 1,
+    warmup: parseDur($('cWu').value), work, rest: parseDur($('cRest').value), cooldown: parseDur($('cCd').value)};
+}
+$('cDate').value = new Date().toLocaleDateString('sv-SE');
+$('cBtn').onclick = async () => {
+  let p; try { p = readCustom(); } catch (e) { $('cMsg').textContent = e.message; $('cMsg').style.color = css('--bad'); return; }
+  const j = await post('custom', {...p, date: $('cDate').value}, $('cBtn'), $('cMsg'));
+  if (j) { $('cMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('cMsg').style.color = css('--good'); }
+};
+$('cSave').onclick = async () => {
+  let p; try { p = readCustom(); } catch (e) { $('cMsg').textContent = e.message; $('cMsg').style.color = css('--bad'); return; }
+  TPL = [...TPL.filter(t => t.name !== p.name), p];
+  const {error} = await sb.from('garmin_dashboard').update({templates: TPL}).eq('id', 1);
+  $('cMsg').textContent = error ? 'Fel: ' + error.message : `Mallen "${p.name}" sparad.`; $('cMsg').style.color = error ? css('--bad') : css('--good');
+  fillTpl(); $('cTpl').value = TPL.length - 1;
+};
+
 async function start() {
   const {data: {session}} = await sb.auth.getSession();
   if (!session) { $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
