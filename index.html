@@ -145,6 +145,8 @@ canvas{max-width:100%}
   </section>
 
   <section id="form" class="tab hide">
+    <div class="group">Lopp</div>
+    <div class="card" id="raceCard"><div class="s">Inget kommande lopp i Garmin-kalendern.</div></div>
     <div class="group">Form och prognos</div>
     <div class="grid" id="formTiles"></div>
     <div class="card sec"><h2>Fitness, trötthet och form, 120 dagar</h2><canvas id="cFit"></canvas>
@@ -251,7 +253,47 @@ function recHtml(r) {
 }
 
 const clock = s => s == null ? '–' : (s = Math.round(s), s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}` : Math.floor(s / 60)) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+const STATUS = {klar: ['Redan där', '--good'], god: ['I rätt riktning', '--good'], 'möjlig': ['Möjligt med bra träning', '--warn'], 'svår': ['Kräver mycket', '--bad']};
+const toSec = s => s.trim().split(':').reduce((a, x) => a * 60 + +x, 0);
+function renderRace() {
+  const r = D.fitness?.race; if (!r) return;
+  const line = (label, t) => { const [txt, c] = STATUS[t.status] || ['–', '--muted'];
+    return `<div class="food"><div><b>${label} ${clock(t.secs)}</b><div class="s">kräver VDOT ${fmt(t.vdot, 1)} · ${t.per_week > 0 ? '+' + fmt(t.per_week, 2) + '/vecka' : 'nått'}</div></div><span class="chip" style="color:${css(c)}">${txt}</span></div>`; };
+  const pct = (v, goal) => Math.min(100, 100 * v / goal);
+  $('raceCard').innerHTML = `<div class="k">${esc(r.location || '')} · ${new Date(r.date).toLocaleDateString('sv-SE', {day: 'numeric', month: 'long', year: 'numeric'})}</div>
+    <div style="font-size:19px;font-weight:700;margin:2px 0 10px">${esc(r.name.replace(/\s*\(.*\)$/, ''))}</div>
+    <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      ${tile('Prognos idag', clock(r.now_time), `VDOT ${fmt(D.fitness.vdot, 1)}`)}${tile('Kvar', fmt(r.weeks, 0) + ' v', r.trend_per_week == null ? '' : `trend ${r.trend_per_week >= 0 ? '+' : ''}${fmt(r.trend_per_week, 2)} VDOT/v`)}</div>
+    <div class="sec">${line('Mål', r.goal)}${line('Godkänt', r.ok)}</div>
+    <div class="sec"><canvas id="cRace"></canvas></div>
+    <h2 class="sec">Löpberedskap, senaste 4 veckorna</h2>
+    <div class="s">Löpning per vecka: <b>${fmt(r.run_km_week, 1)} km</b> (sikta på 30–40 km veckorna före loppet)</div><div class="bar"><i style="width:${pct(r.run_km_week, 35)}%"></i></div>
+    <div class="s sec">Längsta pass: <b>${fmt(r.long_run_km, 1)} km</b> (bygg upp till 16–18 km, senast 3 veckor före)</div><div class="bar"><i style="width:${pct(r.long_run_km, 18)}%"></i></div>
+    <div class="s sec">VDOT räknas från dina snabbaste 5/10 km-sträckor senaste 8 veckorna, justerat för puls. En motionär förbättras normalt 0,2–0,3 VDOT/vecka med regelbunden träning. Cykel och skidor bygger kondition men inte löpekonomi, så lägg in minst 2 löppass/vecka när vädret tillåter.</div>
+    <details class="sec"><summary class="s">Ändra måltider</summary><div class="row sec">
+      <label class="f">Mål<input id="gGoal" value="${clock(r.goal.secs)}" style="width:110px"></label>
+      <label class="f">Godkänt<input id="gOk" value="${clock(r.ok.secs)}" style="width:110px"></label>
+      <button class="btn" id="gSave" style="align-self:flex-end">Spara</button></div><div class="msg" id="gMsg"></div></details>`;
+  const h = r.history.filter(x => x.time);
+  chart('cRace', 'line', h.map(x => x.date.slice(5)), [
+    ds('Prognos', h.map(x => x.time / 60), css('--accent'), {borderWidth: 2.5}),
+    ds('Mål', h.map(() => r.goal.secs / 60), css('--good'), {pointRadius: 0, borderDash: [6, 4], borderWidth: 1.5}),
+    ds('Godkänt', h.map(() => r.ok.secs / 60), css('--warn'), {pointRadius: 0, borderDash: [6, 4], borderWidth: 1.5})],
+    {scales: {y: {reverse: true, ticks: {color: css('--muted'), callback: v => clock(v * 60)}}}});
+  $('gSave').onclick = async () => {
+    const goal = toSec($('gGoal').value), ok = toSec($('gOk').value);
+    if (!(goal > 0 && ok >= goal)) { $('gMsg').textContent = 'Skriv som 1:40:00, godkänt ska vara långsammare än målet.'; return; }
+    const {error} = await sb.from('garmin_dashboard').update({race_goal: {goal, ok}}).eq('id', 1);
+    $('gMsg').textContent = error ? 'Fel: ' + error.message : 'Sparat. Uppdateras vid nästa hämtning.';
+    if (!error) cmd('refresh', {}).then(() => load(false)).catch(() => {});
+  };
+}
+
+const adaptTxt = a => !a ? '' : a.observed == null
+  ? `Målet bygger på Garmins förbrukning (${fmt(a.garmin)} kcal). Efter 10 kompletta loggade dagar och två veckors vägningar räknar appen ut din verkliga förbrukning. Hittills ${a.days} kompletta dagar senaste 4 veckorna. Dagar du glömt logga räknas bort automatiskt.`
+  : `Din verkliga förbrukning är ${fmt(a.observed)} kcal/dag (från ${a.days} loggade dagar och viktkurvan). Garmin säger ${fmt(a.garmin)}. Målet vägs ${Math.round(a.weight * 100)} % på din data${a.weight < 1 ? ', 100 % efter 21 dagar' : ''}.`;
 function renderForm() {
+  renderRace();
   const F = D.fitness; if (!F) return;
   const s = F.series, last = s[s.length - 1], wk = s[s.length - 8];
   const formTxt = last.form < -30 ? 'överbelastad, vila mer' : last.form < -10 ? 'bygger kondition' : last.form < 5 ? 'neutral' : 'utvilad, redo att tävla';
@@ -297,7 +339,8 @@ function render() {
     const macro = `<div class="macro"><i style="width:${n.protein_g*4/n.kcal*100}%;background:${A}"></i><i style="width:${n.carbs_g*4/n.kcal*100}%;background:${G}"></i><i style="width:${n.fat_g*9/n.kcal*100}%;background:${W}"></i></div>
       <div class="row s"><span style="color:${A}">● Protein ${n.protein_g} g</span><span style="color:${G}">● Kolhydrater ${n.carbs_g} g</span><span style="color:${W}">● Fett ${n.fat_g} g</span></div>`;
     $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal)} kcal</div><div class="s">Förbrukning ${fmt(n.tdee)} kcal minus ${n.deficit} kcal</div>${macro}`;
-    $('kostFull').innerHTML = `<div class="grid">${tile('Dagens mål', fmt(n.kcal) + ' kcal', `förbrukning ${fmt(n.tdee)} kcal (snitt 7 dagar)`)}${tile('Protein', n.protein_g + ' g', '1,8 g per kg kroppsvikt')}${tile('Kolhydrater', n.carbs_g + ' g', 'mest runt träningen')}${tile('Fett', n.fat_g + ' g', '0,8 g per kg')}${tile('Förväntad takt', '−' + fmt(n.expected_kg_per_week, 2) + ' kg', 'per vecka')}</div>
+    $('kostFull').innerHTML = `<div class="grid">${tile('Dagens mål', fmt(n.kcal) + ' kcal', `förbrukning ${fmt(n.tdee)} kcal`)}${tile('Protein', n.protein_g + ' g', '1,8 g per kg kroppsvikt')}${tile('Kolhydrater', n.carbs_g + ' g', 'mest runt träningen')}${tile('Fett', n.fat_g + ' g', '0,8 g per kg')}${tile('Förväntad takt', '−' + fmt(n.expected_kg_per_week, 2) + ' kg', 'per vecka')}</div>
+      <div class="card sec"><h2>Smart kalorimål</h2><div class="s">${adaptTxt(n.adaptive)}</div>${n.adaptive ? `<div class="bar"><i style="width:${100 * n.adaptive.weight}%"></i></div>` : ''}</div>
       <div class="card sec"><h2>Fördelning</h2>${macro}<div class="s" style="margin-top:8px">${esc(n.note)}</div></div>
       <div class="card sec"><h2>Förslag på måltider</h2><div class="tw"><table><tr><th>Måltid</th><th>kcal</th><th>Protein</th><th>Idé</th></tr>${n.meals.map(m => `<tr><td>${m.name}</td><td>${fmt(m.kcal)}</td><td>${m.protein_g} g</td><td>${esc(m.idea)}</td></tr>`).join('')}</table></div></div>`;
   } else $('kostMini').innerHTML = $('kostFull').innerHTML = '<div class="card">Logga din vikt för att få kostråd.</div>';
