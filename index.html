@@ -311,7 +311,7 @@ function renderForm() {
   chart('cVo2', 'line', v.map(x => x.date.slice(5)), [ds('VO2max', v.map(x => x.v), css('--accent'))]);
   $('raceTable').innerHTML = '<tr><th>Lopp</th><th>Prognos</th><th>Tempo</th><th>Min modell</th><th>Garmin</th></tr>' +
     F.races.map(r => `<tr><td>${r.name}</td><td><b>${clock(r.blend)}</b></td><td>${r.blend ? clock(r.blend / ({'5 km': 5, '10 km': 10, 'Halvmaraton': 21.0975})[r.name]) + '/km' : '–'}</td><td>${clock(r.own)}</td><td>${clock(r.garmin)}</td></tr>`).join('');
-  $('raceNote').innerHTML = `Prognosen är snittet av två modeller. <b>Min modell</b> räknar ut ett VDOT på ${fmt(F.vdot, 1)} från dina snabbaste 5/10 km-sträckor senaste 8 veckorna (${F.vdot_n} st), justerat för hur hög pulsen var (maxpuls ${fmt(F.hr_max)}). Den räknas sedan om till lopptider med Daniels formel. <b>Garmin</b> är klockans egen prognos. Ett lopp i utvilad form (form över +5) brukar gå 1–3 % snabbare.`;
+  $('raceNote').innerHTML = `Prognosen är snittet av två modeller. <b>Min modell</b> räknar ut ett VDOT på ${fmt(F.vdot, 1)} från dina snabbaste 5/10 km-sträckor senaste 8 veckorna (${F.vdot_n} st), justerat för hur hög pulsen var (maxpuls ${fmt(F.hr_max)}). 5 km räknas fram med Daniels formel. 10 km och halvmaraton justeras för din löpvolym (${fmt(D.fitness.race?.run_km_week ?? 0, 1)} km/vecka senaste 4 veckorna), eftersom motionärer med lite volym tappar mer tempo på långa lopp. Prognosen blir snabbare när du springer mer. <b>Garmin</b> är klockans egen prognos. Ett lopp i utvilad form (form över +5) brukar gå 1–3 % snabbare.`;
 }
 
 function render() {
@@ -573,6 +573,7 @@ $('eatList').onclick = async e => {
 
 async function start() {
   const {data: {session}} = await sb.auth.getSession();
+  $('tabs').classList.toggle('hide', !session); $('refresh').classList.toggle('hide', !session);
   if (!session) { $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
   $('login').classList.add('hide'); $('load').classList.remove('hide');
   load(false);
