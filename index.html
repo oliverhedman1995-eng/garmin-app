@@ -178,7 +178,6 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       <div class="row"><button class="btn ghost" data-p="week">Vecka</button><button class="btn ghost" data-p="month">Månad</button><button class="btn" data-p="year">År</button></div></div>
     <div class="grid sec" id="stTotals"></div>
     <div class="card sec"><h2>Distans per månad (km)</h2><canvas id="cStMonth"></canvas></div>
-    <div class="card sec"><h2>Alla dina rundor</h2><div id="stMap" class="map"></div></div>
     <div class="card sec"><h2>Senaste aktiviteterna</h2><div class="tw"><table id="stTable"></table></div></div>
   </section>
 
@@ -464,7 +463,7 @@ start();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && D && load(false));
 
 // --- Strava ---
-let stPeriod = 'year', stMap;
+let stPeriod = 'year';
 const S = () => D.strava;
 function renderStrava() {
   if (!S()) { $('stFetched').textContent = 'Ingen Strava-data ännu.'; return; }
@@ -477,14 +476,6 @@ function renderStrava() {
     {scales: {x: {stacked: true, grid: {display: false}, ticks: {color: css('--muted')}}, y: {stacked: true, ticks: {color: css('--muted')}}}});
   $('stTable').innerHTML = '<tr><th>Datum</th><th>Namn</th><th>Sport</th><th>km</th><th>Tid</th><th>Tempo</th><th>hm</th><th>Ansträngning</th><th>Kudos</th></tr>' +
     S().recent.map(a => `<tr><td>${a.date}</td><td>${esc(a.name)}</td><td>${esc(a.sport)}</td><td>${a.km ? fmt(a.km, 2) : '–'}</td><td>${a.min} min</td><td>${esc(a.pace || '–')}</td><td>${fmt(a.elev)}</td><td>${fmt(a.effort)}</td><td>${fmt(a.kudos)}</td></tr>`).join('');
-}
-function drawStravaMap() {
-  if (!S()) return;
-  if (stMap) return stMap.invalidateSize();
-  stMap = L.map('stMap'); tiles().addTo(stMap);
-  const C = {Run: css('--bad'), Ride: css('--accent')};
-  S().tracks.forEach(t => L.polyline(t.coords, {color: C[t.sport] || css('--warn'), weight: 2, opacity: .55}).bindTooltip(`${esc(t.name)} ${t.date}`).addTo(stMap));
-  stMap.setView([63.707, 20.379], 12);
 }
 document.querySelectorAll('#strava [data-p]').forEach(b => b.onclick = () => { stPeriod = b.dataset.p; renderStrava(); });
 
@@ -542,7 +533,7 @@ $('rSave').onclick = async () => {
 };
 
 const _show = show;
-show = t => { _show(t); if (t === 'rutter') initRoutes(); if (t === 'strava' && D) { renderStrava(); drawStravaMap(); } };
+show = t => { _show(t); if (t === 'rutter') initRoutes(); if (t === 'strava' && D) renderStrava(); };
 </script>
 </body>
 </html>
