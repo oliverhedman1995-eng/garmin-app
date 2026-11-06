@@ -477,16 +477,8 @@ function renderWave1() {
     $('sleepPhaseBars').innerHTML = `<div class="macro" style="height:14px;border-radius:8px;overflow:hidden;display:flex">${
       parts.map(([n,s,c]) => `<i title="${n}" style="width:${100*(s||0)/tot}%;background:${c};display:block"></i>`).join('')
     }</div><div class="row s" style="margin-top:8px">${parts.map(([n,s,c]) => `<span><span style="color:${c}">●</span> ${n} ${fmt(Math.round((s||0)/60))} min</span>`).join('')}</div>`;
-  }
-  // enrich act rows with dynamics click
-  if (W1.acts.length) {
-    const byId = Object.fromEntries(W1.acts.map(a => [String(a.activity_id), a]));
-    // make actTable rows clickable when matching
-    $('actTable').querySelectorAll('tr[data-aid]').forEach(tr => {
-      tr.style.cursor = 'pointer';
-      tr.onclick = () => showActDetail(tr.dataset.aid);
-    });
-    // if table built from D.activities, annotate with data-aid
+  } else {
+    $('sleepPhaseBars').textContent = 'Ingen sömndata synkad ännu.';
   }
 }
 async function showActDetail(aid) {
