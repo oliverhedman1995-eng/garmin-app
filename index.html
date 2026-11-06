@@ -92,7 +92,7 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
       <input id="lEmail" name="email" type="email" inputmode="email" autocapitalize="off" autocomplete="username" placeholder="E-post" style="font-size:16px">
       <input id="lPw" name="password" type="password" autocomplete="current-password" placeholder="Lösenord" style="font-size:16px">
       <label class="s"><input type="checkbox" id="lShow"> Visa lösenord</label>
-      <div class="row"><button class="btn" id="lIn" type="submit">Logga in</button></div>
+      <button class="btn big" id="lIn" type="submit">Logga in</button>
       <div class="msg" id="lMsg"></div>
     </form>
   </div>
@@ -101,7 +101,7 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
     <div class="card rec" id="recCard"></div>
     <div class="grid sec" id="todayTiles"></div>
     <div class="card sec">
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">⏰ Påminnelser</h2><span class="s">Notiser via Grok Bot</span></div>
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">⏰ Påminnelser</h2><span class="s">Påminnelser visas bara här i appen.</span></div>
       <div id="remList" style="margin-top:8px"></div>
       <div class="row sec" style="gap:8px">
         <input id="remText" placeholder="Ny påminnelse" style="flex:2;min-width:140px">
@@ -316,7 +316,7 @@ function renderRace() {
       <label class="f">Mål<input id="gGoal" value="${clock(r.goal.secs)}" style="width:110px"></label>
       <label class="f">Godkänt<input id="gOk" value="${clock(r.ok.secs)}" style="width:110px"></label>
       <button class="btn" id="gSave" style="align-self:flex-end">Spara</button></div><div class="msg" id="gMsg"></div></details>`;
-  const h = r.history.filter(x => x.time);
+  const h = r.history.filter(x => x.time).slice().sort((a, b) => a.date.localeCompare(b.date));
   chart('cRace', 'line', h.map(x => x.date.slice(5)), [
     ds('Prognos', h.map(x => x.time / 60), css('--accent'), {borderWidth: 2.5}),
     ds('Mål', h.map(() => r.goal.secs / 60), css('--good'), {pointRadius: 0, borderDash: [6, 4], borderWidth: 1.5}),
@@ -443,7 +443,8 @@ async function load(refresh) {
     loadEaten();
     loadRem();
     const age = (Date.now() - new Date(data.updated_at)) / 36e5;
-    $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + (age > 12 ? ` · ${Math.round(age / 24) || '<1'} d gammal` : '');
+    const staleTxt = age > 12 ? (age < 24 ? ` · ${Math.round(age)} h gammal` : ` · ${Math.round(age / 24)} d gammal`) : '';
+    $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + staleTxt;
     $('upd').classList.toggle('stale', age > 12);
   } catch (e) { $('load').classList.remove('hide'); $('load').innerHTML = `<b>Kunde inte hämta data.</b><div class="s" style="margin:6px 0 14px">Kontrollera nätet och försök igen. (${esc(e.message)})</div><button class="btn" onclick="load(false)">Försök igen</button>`; $('upd').textContent = ''; }
   $('refresh').disabled = false;
@@ -613,12 +614,13 @@ function renderEaten() {
 }
 // --- Påminnelser ---
 async function loadRem() {
-  const {data} = await sb.from('reminders').select('id,text,due_at').is('sent_at', null).order('due_at').limit(30);
+  const now = new Date().toISOString();
+  const {data} = await sb.from('reminders').select('id,text,due_at').is('sent_at', null).gte('due_at', now).order('due_at').limit(30);
   const when = d => { const t = new Date(d), td = new Date(), tm = new Date(Date.now() + 864e5);
     const day = t.toDateString() === td.toDateString() ? 'Idag' : t.toDateString() === tm.toDateString() ? 'Imorgon' : t.toLocaleDateString('sv-SE', {weekday: 'short', day: 'numeric', month: 'short'});
     return `${day} ${t.toLocaleTimeString('sv-SE', {hour: '2-digit', minute: '2-digit'})}`; };
   $('remList').innerHTML = (data || []).map(r => `<div class="food"><div><b>${esc(r.text)}</b><div class="s">${when(r.due_at)}</div></div>
-    <button class="del" data-rem="${r.id}" aria-label="Ta bort ${esc(r.text)}">Ta bort</button></div>`).join('') || '<div class="s">Inga kommande påminnelser. Skriv till exempel "påminn mig 15:00 att ringa BVC" till boten.</div>';
+    <button class="del" data-rem="${r.id}" aria-label="Ta bort ${esc(r.text)}">Ta bort</button></div>`).join('') || '<div class="s">Inga kommande påminnelser.</div>';
 }
 $('remList').onclick = async e => {
   const b = e.target.closest('[data-rem]'); if (!b) return;
@@ -703,7 +705,7 @@ $('eatList').onclick = async e => {
 async function start() {
   const {data: {session}} = await sb.auth.getSession();
   $('tabs').classList.toggle('hide', !session); $('refresh').classList.toggle('hide', !session);
-  if (!session) { $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
+  if (!session) { $('title').textContent = 'Logga in'; $('load').classList.add('hide'); $('login').classList.remove('hide'); return; }
   $('login').classList.add('hide'); $('load').classList.remove('hide');
   load(false);
 }
