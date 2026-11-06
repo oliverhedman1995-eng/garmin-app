@@ -7,13 +7,14 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-title" content="Garmin">
 <link rel="apple-touch-icon" href="icon.png">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#f9f9fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161618" media="(prefers-color-scheme: dark)">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-:root{--bg:#f2f2f7;--card:#fff;--text:#000;--muted:#6c6c70;--line:#e5e5ea;--accent:#007aff;--good:#28a745;--warn:#e08600;--bad:#e5352b;--chip:#e9effd;--fill:#e5e5ea;--bar:rgba(249,249,251,.88)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88)}}
-:root[data-theme="dark"]{--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88)}
+:root{--bg:#f2f2f7;--card:#fff;--text:#000;--muted:#6c6c70;--line:#e5e5ea;--accent:#007aff;--good:#28a745;--warn:#e08600;--bad:#e5352b;--chip:#e9effd;--fill:#e5e5ea;--bar:rgba(249,249,251,.88);--good-t:#1a7a35;--warn-t:#a35700;--bad-t:#c4271f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88);--good-t:#30d158;--warn-t:#ffb340;--bad-t:#ff6961}}
+:root[data-theme="dark"]{--bg:#000;--card:#1c1c1e;--text:#fff;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--good:#30d158;--warn:#ffb340;--bad:#ff6961;--chip:#1f2a3d;--fill:#2c2c2e;--bar:rgba(22,22,24,.88);--good-t:#30d158;--warn-t:#ffb340;--bad-t:#ff6961}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
@@ -64,6 +65,16 @@ label.f input,label.f select{width:100%;min-width:0}
 .food{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;border-bottom:.5px solid var(--line)}.food:last-child{border:0}
 .del{border:0;background:none;color:var(--bad);font-size:15px;min-width:44px;min-height:44px;cursor:pointer}
 canvas{max-width:100%}
+.ch{position:relative;height:220px}
+.card .grid .card{background:var(--bg)}
+.btn{min-width:44px}
+.del{white-space:nowrap;color:var(--bad-t)}
+summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent);min-height:0;width:22px;height:22px;padding:0;margin:0}
+label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-height:44px}
+#recCard .chip{display:none}
+.grid>.card{padding:12px 14px}
+#upd.stale{color:var(--warn-t);font-weight:600}
 </style>
 </head>
 <body>
@@ -88,6 +99,7 @@ canvas{max-width:100%}
 
   <section id="idag" class="tab hide">
     <div class="card rec" id="recCard"></div>
+    <div class="grid sec" id="todayTiles"></div>
     <div class="card sec">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">⏰ Påminnelser</h2><span class="s">Skriv till @Oliverprivat_bot</span></div>
       <div id="remList" style="margin-top:8px"></div>
@@ -98,7 +110,6 @@ canvas{max-width:100%}
       </div>
       <div class="msg" id="remMsg"></div>
     </div>
-    <div class="grid sec" id="todayTiles"></div>
     <div class="grid2 sec">
       <div class="card"><h2>Puls idag</h2><canvas id="cHr"></canvas></div>
       <div class="card"><h2>Kost idag</h2><div id="kostMini"></div></div>
@@ -116,7 +127,8 @@ canvas{max-width:100%}
   </section>
 
   <section id="traning" class="tab hide">
-    <div class="card rec" id="recCard2"></div>
+    <div class="card" id="raceCard"><div class="s">Inget kommande lopp i Garmin-kalendern.</div></div>
+    <div class="card rec sec" id="recCard2"></div>
     <div class="card sec">
       <h2>Lägg dagens rekommenderade pass i Garmin-kalendern</h2>
       <div class="row">
@@ -158,8 +170,6 @@ canvas{max-width:100%}
   </section>
 
   <section id="form" class="tab hide">
-    <div class="group">Lopp</div>
-    <div class="card" id="raceCard"><div class="s">Inget kommande lopp i Garmin-kalendern.</div></div>
     <div class="group">Form och prognos</div>
     <div class="grid" id="formTiles"></div>
     <div class="card sec"><h2>Fitness, trötthet och form, 120 dagar</h2><canvas id="cFit"></canvas>
@@ -194,6 +204,11 @@ canvas{max-width:100%}
     </div>
     <div class="card sec"><h2>Ätit idag</h2><div id="eatTotals"></div><div id="eatList"></div></div>
     <div class="card sec">
+      <h2>Logga vikt</h2>
+      <div class="row"><input type="text" id="kg" inputmode="decimal" autocomplete="off" placeholder="kg, t.ex. 98,5" style="width:150px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
+      <div class="msg" id="kgMsg"></div>
+    </div>
+    <div class="card sec">
       <h2>Vad blir det för mat?</h2>
       <div class="s">Fota kylskåp, frys och skafferi. Du får tre rätter till hela familjen, och din portion fyller det som är kvar av dagens mål.</div>
       <div class="grid sec" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
@@ -218,11 +233,6 @@ canvas{max-width:100%}
 
   <section id="vikt" class="tab hide">
     <div class="group">Vikt</div>
-    <div class="card">
-      <h2>Logga vikt</h2>
-      <div class="row"><input type="text" id="kg" inputmode="decimal" autocomplete="off" placeholder="kg, t.ex. 98,5" style="width:150px"><button class="btn" id="kgBtn">Spara i Garmin</button></div>
-      <div class="msg" id="kgMsg"></div>
-    </div>
     <div class="grid sec" id="weightTiles"></div>
     <div class="card sec"><h2>Viktkurva</h2><canvas id="cWeight"></canvas></div>
   </section>
@@ -264,15 +274,15 @@ function tile(k, v, s = '', pct) {
 }
 function chart(id, type, labels, datasets, opts = {}) {
   charts[id]?.destroy();
+  const cv = $(id); if (!cv.parentElement.classList.contains('ch')) { const w = document.createElement('div'); w.className = 'ch'; cv.replaceWith(w); w.append(cv); }
   const grid = css('--line'), txt = css('--muted');
   charts[id] = new Chart($(id), {type, data: {labels, datasets}, options: {
     responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
     plugins: {legend: {display: datasets.length > 1, labels: {color: txt}}},
-    scales: Object.assign({x: {grid: {display: false}, ticks: {color: txt, maxTicksLimit: 8}}, y: {grid: {color: grid}, ticks: {color: txt}}}, opts.scales || {}),
+    scales: Object.assign({x: {grid: {display: false}, ticks: {color: txt, maxTicksLimit: 6, maxRotation: 0, autoSkip: true}}, y: {grid: {color: grid}, ticks: {color: txt}}}, opts.scales || {}),
     ...opts.extra}});
-  $(id).parentElement.style.height = '230px';
 }
-const ds = (label, data, color, extra = {}) => ({label, data, borderColor: color, backgroundColor: color, tension: .3, pointRadius: 2, ...extra});
+const ds = (label, data, color, extra = {}) => ({label, data, borderColor: color, backgroundColor: color, tension: .3, cubicInterpolationMode: 'monotone', pointRadius: 2, ...extra});
 
 const SPORT = {running: '🏃 Löpning', cycling: '🚴 Cykel inne', skiing: '⛷️ Skidor'};
 function recHtml(r) {
@@ -285,7 +295,7 @@ function recHtml(r) {
 }
 
 const clock = s => s == null ? '–' : (s = Math.round(s), s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}` : Math.floor(s / 60)) + ':' + String(Math.round(s % 60)).padStart(2, '0');
-const STATUS = {klar: ['Redan där', '--good'], god: ['I rätt riktning', '--good'], 'möjlig': ['Möjligt med bra träning', '--warn'], 'svår': ['Kräver mycket', '--bad']};
+const STATUS = {klar: ['Redan där', '--good-t'], god: ['I rätt riktning', '--good-t'], 'möjlig': ['Möjligt med bra träning', '--warn-t'], 'svår': ['Kräver mycket', '--bad-t']};
 const toSec = s => s.trim().split(':').reduce((a, x) => a * 60 + +x, 0);
 function renderRace() {
   const r = D.fitness?.race; if (!r) return;
@@ -302,7 +312,7 @@ function renderRace() {
     <div class="s">Löpning per vecka: <b>${fmt(r.run_km_week, 1)} km</b> (sikta på 30–40 km veckorna före loppet)</div><div class="bar"><i style="width:${pct(r.run_km_week, 35)}%"></i></div>
     <div class="s sec">Längsta pass: <b>${fmt(r.long_run_km, 1)} km</b> (bygg upp till 16–18 km, senast 3 veckor före)</div><div class="bar"><i style="width:${pct(r.long_run_km, 18)}%"></i></div>
     <div class="s sec">VDOT räknas från dina snabbaste 5/10 km-sträckor senaste 8 veckorna, justerat för puls. En motionär förbättras normalt 0,2–0,3 VDOT/vecka med regelbunden träning. Cykel och skidor bygger kondition men inte löpekonomi, så lägg in minst 2 löppass/vecka när vädret tillåter.</div>
-    <details class="sec"><summary class="s">Ändra måltider</summary><div class="row sec">
+    <details class="sec"><summary class="s">Ändra loppmål</summary><div class="row sec">
       <label class="f">Mål<input id="gGoal" value="${clock(r.goal.secs)}" style="width:110px"></label>
       <label class="f">Godkänt<input id="gOk" value="${clock(r.ok.secs)}" style="width:110px"></label>
       <button class="btn" id="gSave" style="align-self:flex-end">Spara</button></div><div class="msg" id="gMsg"></div></details>`;
@@ -356,10 +366,10 @@ function render() {
 
   $('todayTiles').innerHTML = [
     tile('Sömn', fmt(t.sleep.score), hm(t.sleep.hours)),
-    tile('Body battery', fmt(t.bb_now), `högsta ${fmt(t.bb_high)} · lägsta ${fmt(t.bb_low)}`, t.bb_now),
-    tile('Steg', fmt(t.steps), `mål ${fmt(t.step_goal)}`, t.step_goal ? 100 * t.steps / t.step_goal : null),
-    tile('Vilopuls', fmt(t.rhr), `7-dagarssnitt ${fmt(t.rhr_7d)}`),
     tile('HRV', fmt(t.hrv.last), `${esc(t.hrv.status ?? '')} · normalt ${fmt(t.hrv.low)}–${fmt(t.hrv.high)}`),
+    tile('Body battery', fmt(t.bb_now), `högsta ${fmt(t.bb_high)} · lägsta ${fmt(t.bb_low)}`, t.bb_now),
+    tile('Vilopuls', fmt(t.rhr), `7-dagarssnitt ${fmt(t.rhr_7d)}`),
+    tile('Steg', fmt(t.steps), `mål ${fmt(t.step_goal)}`, t.step_goal ? 100 * t.steps / t.step_goal : null),
     tile('Stress', fmt(t.stress_avg), 'snitt idag'),
     tile('Kalorier', fmt(t.kcal_total), `${fmt(t.kcal_active)} aktiva`),
     tile('Intensitetsminuter', fmt(t.intensity_min), `veckomål ${fmt(t.intensity_goal)}`),
@@ -369,7 +379,7 @@ function render() {
   const n = D.nutrition;
   if (n) {
     const macro = `<div class="macro"><i style="width:${n.protein_g*4/n.kcal*100}%;background:${A}"></i><i style="width:${n.carbs_g*4/n.kcal*100}%;background:${G}"></i><i style="width:${n.fat_g*9/n.kcal*100}%;background:${W}"></i></div>
-      <div class="row s"><span style="color:${A}">● Protein ${n.protein_g} g</span><span style="color:${G}">● Kolhydrater ${n.carbs_g} g</span><span style="color:${W}">● Fett ${n.fat_g} g</span></div>`;
+      <div class="row s"><span><span style="color:${A}">●</span> Protein ${n.protein_g} g</span><span><span style="color:${G}">●</span> Kolhydrater ${n.carbs_g} g</span><span><span style="color:${W}">●</span> Fett ${n.fat_g} g</span></div>`;
     $('kostMini').innerHTML = `<div class="v">${fmt(n.kcal)} kcal</div><div class="s">Förbrukning ${fmt(n.tdee)} kcal minus ${n.deficit} kcal</div>${macro}`;
     $('kostFull').innerHTML = `<div class="grid">${tile('Dagens mål', fmt(n.kcal) + ' kcal', `förbrukning ${fmt(n.tdee)} kcal`)}${tile('Protein', n.protein_g + ' g', '1,8 g per kg kroppsvikt')}${tile('Kolhydrater', n.carbs_g + ' g', 'mest runt träningen')}${tile('Fett', n.fat_g + ' g', '0,8 g per kg')}${tile('Förväntad takt', '−' + fmt(n.expected_kg_per_week, 2) + ' kg', 'per vecka')}</div>
       <div class="card sec"><h2>Smart kalorimål</h2><div class="s">${adaptTxt(n.adaptive)}</div>${n.adaptive ? `<div class="bar"><i style="width:${100 * n.adaptive.weight}%"></i></div>` : ''}</div>
@@ -406,7 +416,7 @@ function render() {
   $('weightTiles').innerHTML = [tile('Senaste vikt', last ? fmt(last.kg, 1) + ' kg' : '–', last?.date ?? ''),
     tile('Trend', D.weight_trend_per_week != null ? (D.weight_trend_per_week > 0 ? '+' : '') + fmt(D.weight_trend_per_week, 2) + ' kg' : '–', 'per vecka'),
     tile('Förändring', w.length > 1 ? fmt(last.kg - w[0].kg, 1) + ' kg' : '–', w.length ? 'sedan ' + w[0].date : '')].join('');
-  chart('cWeight', 'line', w.map(x => x.date), [ds('kg', w.map(x => x.kg), A)]);
+  chart('cWeight', 'line', w.map(x => x.date.slice(5)), [ds('kg', w.map(x => x.kg), A)]);
 
   chart('cRhr', 'line', labels, [ds('Vilopuls', days.map(d => d.rhr), B)]);
   chart('cHrv', 'line', labels, [ds('HRV natt', days.map(d => d.hrv.last), A), ds('Veckosnitt', days.map(d => d.hrv.week), M, {borderDash: [4, 4]})]);
@@ -432,8 +442,10 @@ async function load(refresh) {
     render();
     loadEaten();
     loadRem();
-    $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'});
-  } catch (e) { $('load').classList.remove('hide'); $('load').textContent = 'Kunde inte hämta data: ' + e.message; $('upd').textContent = ''; }
+    const age = (Date.now() - new Date(data.updated_at)) / 36e5;
+    $('upd').textContent = 'Uppdaterad ' + new Date(data.updated_at).toLocaleString('sv-SE', {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + (age > 12 ? ` · ${Math.round(age / 24) || '<1'} d gammal` : '');
+    $('upd').classList.toggle('stale', age > 12);
+  } catch (e) { $('load').classList.remove('hide'); $('load').innerHTML = `<b>Kunde inte hämta data.</b><div class="s" style="margin:6px 0 14px">Kontrollera nätet och försök igen. (${esc(e.message)})</div><button class="btn" onclick="load(false)">Försök igen</button>`; $('upd').textContent = ''; }
   $('refresh').disabled = false;
 }
 // ponytail: kommandon körs av GitHub Actions; vi pollar raden tills den är klar (max 4 min)
@@ -463,7 +475,7 @@ async function post(kind, body, btn, msg) {
   btn.disabled = true; msg.textContent = 'Skickar… (tar 30–60 s)'; msg.style.color = '';
   try {
     return await cmd(kind, body);
-  } catch (e) { msg.textContent = 'Fel: ' + e.message; msg.style.color = css('--bad'); }
+  } catch (e) { msg.textContent = 'Fel: ' + e.message; msg.style.color = css('--bad-t'); }
   finally { btn.disabled = false; }
 }
 
@@ -474,12 +486,12 @@ $('kgBtn').onclick = async () => {
   const kg = parseFloat($('kg').value.replace(',', '.'));
   if (!(kg >= 30 && kg <= 250)) { $('kgMsg').textContent = 'Skriv en vikt mellan 30 och 250 kg.'; return; }
   const j = await post('weight', {kg}, $('kgBtn'), $('kgMsg'));
-  if (j) { $('kgMsg').textContent = `Sparat: ${fmt(j.kg, 1)} kg`; $('kgMsg').style.color = css('--good'); $('kg').value = ''; load(false); }
+  if (j) { $('kgMsg').textContent = `Sparat: ${fmt(j.kg, 1)} kg`; $('kgMsg').style.color = css('--good-t'); $('kg').value = ''; load(false); }
 };
 $('kg').addEventListener('keydown', e => { if (e.key === 'Enter') $('kgBtn').click(); });
 $('wBtn').onclick = async () => {
   const j = await post('workout', {sport: $('wSport').value, date: $('wDate').value}, $('wBtn'), $('wMsg'));
-  if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good'); }
+  if (j) { $('wMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('wMsg').style.color = css('--good-t'); }
 };
 // --- Eget pass ---
 let TPL = [];
@@ -528,13 +540,13 @@ $('cDate').value = new Date().toLocaleDateString('sv-SE');
 $('cBtn').onclick = async () => {
   let p; try { p = readCustom(); } catch (e) { $('cMsg').textContent = e.message; $('cMsg').style.color = css('--bad'); return; }
   const j = await post('custom', {...p, date: $('cDate').value}, $('cBtn'), $('cMsg'));
-  if (j) { $('cMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('cMsg').style.color = css('--good'); }
+  if (j) { $('cMsg').textContent = `Lagt in "${j.name}" ${j.date}. Synka klockan.`; $('cMsg').style.color = css('--good-t'); }
 };
 $('cSave').onclick = async () => {
   let p; try { p = readCustom(); } catch (e) { $('cMsg').textContent = e.message; $('cMsg').style.color = css('--bad'); return; }
   TPL = [...TPL.filter(t => t.name !== p.name), p];
   const {error} = await sb.from('garmin_dashboard').update({templates: TPL}).eq('id', 1);
-  $('cMsg').textContent = error ? 'Fel: ' + error.message : `Mallen "${p.name}" sparad.`; $('cMsg').style.color = error ? css('--bad') : css('--good');
+  $('cMsg').textContent = error ? 'Fel: ' + error.message : `Mallen "${p.name}" sparad.`; $('cMsg').style.color = error ? css('--bad-t') : css('--good-t');
   fillTpl(); $('cTpl').value = TPL.length - 1;
 };
 
@@ -570,7 +582,7 @@ $('fBtn').onclick = async () => {
     $('fName').value = data.name; $('fItems').textContent = data.items.join(' · ') + ` (säkerhet: ${data.confidence})`;
     $('fKcal').value = data.kcal; $('fP').value = data.protein_g; $('fC').value = data.carbs_g; $('fF').value = data.fat_g;
     $('fRes').classList.remove('hide'); $('fMsg').textContent = 'Justera vid behov och spara.';
-  } catch (e) { $('fMsg').textContent = 'Fel: ' + e.message; $('fMsg').style.color = css('--bad'); }
+  } catch (e) { $('fMsg').textContent = 'Fel: ' + e.message; $('fMsg').style.color = css('--bad-t'); }
   $('fBtn').disabled = false;
 };
 $('fSave').onclick = async () => {
@@ -581,7 +593,7 @@ $('fSave').onclick = async () => {
   $('fSave').disabled = false;
   if (error) { $('fMsg').textContent = 'Fel: ' + error.message; $('fMsg').style.color = css('--bad'); return; }
   fImg = null; $('fPhoto').value = ''; $('fDesc').value = ''; $('fPrev').classList.add('hide'); $('fRes').classList.add('hide');
-  $('fMsg').textContent = `Sparat: ${row.name}`; $('fMsg').style.color = css('--good');
+  $('fMsg').textContent = `Sparat: ${row.name}`; $('fMsg').style.color = css('--good-t');
   loadEaten();
 };
 async function loadEaten() {
@@ -660,7 +672,7 @@ $('pBtn').onclick = async () => {
     pRecipes = data.recipes; pRender();
     $('pMsg').textContent = images.length ? 'Klart! Nästa gång kan du trycka direkt för nya förslag utan att fota.' : '';
     pImgs.fill(null); document.querySelectorAll('.pslot').forEach(s => { s.style.backgroundImage = ''; s.classList.remove('has'); s.querySelector('input').value = ''; });
-  } catch (e) { $('pMsg').textContent = 'Fel: ' + e.message; $('pMsg').style.color = css('--bad'); }
+  } catch (e) { $('pMsg').textContent = 'Fel: ' + e.message; $('pMsg').style.color = css('--bad-t'); }
   $('pBtn').disabled = false;
 };
 function pRender() {
