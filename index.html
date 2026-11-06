@@ -124,6 +124,7 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
       <div class="card"><h2>Sömnpoäng och timmar, 14 dagar</h2><canvas id="cSleep"></canvas></div>
       <div class="card"><h2>Sömnfaser i procent</h2><canvas id="cPhases"></canvas></div>
     </div>
+    <div class="card sec"><h2>Sömnfaser i natt</h2><div id="sleepPhaseBars" class="s">Hämtar…</div></div>
   </section>
 
   <section id="traning" class="tab hide">
@@ -166,7 +167,8 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
       <div class="card"><h2>Träningsminuter per dag</h2><canvas id="cLoad"></canvas></div>
       <div class="card"><h2>Veckosammanfattning</h2><div class="grid" id="weekTiles"></div></div>
     </div>
-    <div class="card sec"><h2>Senaste passen</h2><div class="tw"><table id="actTable"></table></div></div>
+    <div class="card sec"><h2>Senaste passen</h2><div class="tw"><table id="actTable"></table></div>
+      <div id="actDetail" class="sec hide"></div></div>
   </section>
 
   <section id="form" class="tab hide">
@@ -238,6 +240,12 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
   </section>
 
   <section id="halsa" class="tab hide">
+    <div class="group">Idag</div>
+    <div class="grid" id="hrvStatusTiles"></div>
+    <div class="grid2 sec">
+      <div class="card"><h2>Body battery idag</h2><canvas id="cBbToday"></canvas></div>
+      <div class="card"><h2>Stress idag</h2><canvas id="cStressToday"></canvas></div>
+    </div>
     <div class="group">Trender, 14 dagar</div>
     <div class="grid2">
       <div class="card"><h2>Vilopuls</h2><canvas id="cRhr"></canvas></div>
@@ -408,9 +416,10 @@ function render() {
   $('weekTiles').innerHTML = [tile('Pass', wk.length, 'senaste 7 dagarna'), tile('Minuter', fmt(wk.reduce((s, a) => s + a.minutes, 0))),
     tile('Distans', fmt(wk.reduce((s, a) => s + a.km, 0), 1) + ' km'), tile('Kalorier', fmt(wk.reduce((s, a) => s + (a.kcal || 0), 0)))].join('');
   $('actTable').innerHTML = `<tr><th>Datum</th><th>Pass</th><th>Typ</th><th>Tid</th><th>km</th><th>Tempo</th><th>Puls</th><th>Effekt</th><th>kcal</th></tr>` +
-    acts.map(a => `<tr><td>${a.start.slice(0, 10)}</td><td>${esc(a.name)}</td><td>${TYPES[a.type] || esc(a.type)}</td><td>${a.minutes} min</td><td>${a.km ? fmt(a.km, 2) : '–'}</td>
+    acts.map(a => `<tr data-aid="${a.id || ''}" style="cursor:pointer"><td>${a.start.slice(0, 10)}</td><td>${esc(a.name)}</td><td>${TYPES[a.type] || esc(a.type)}</td><td>${a.minutes} min</td><td>${a.km ? fmt(a.km, 2) : '–'}</td>
       <td>${a.pace && a.type?.includes('run') ? Math.floor(a.pace) + ':' + String(Math.round(a.pace % 1 * 60)).padStart(2, '0') + '/km' : '–'}</td>
       <td>${fmt(a.hr_avg)}${a.hr_max ? ' / ' + fmt(a.hr_max) : ''}</td><td>${fmt(a.te, 1)}</td><td>${fmt(a.kcal)}</td></tr>`).join('');
+  $('actTable').onclick = e => { const tr = e.target.closest('tr[data-aid]'); if (tr?.dataset.aid) showActDetail(tr.dataset.aid); };
 
   const w = D.weights, last = w.at(-1);
   $('weightTiles').innerHTML = [tile('Senaste vikt', last ? fmt(last.kg, 1) + ' kg' : '–', last?.date ?? ''),
@@ -424,6 +433,86 @@ function render() {
   chart('cStress', 'bar', labels, [ds('Stress', days.map(d => d.stress_avg), W)]);
   chart('cSteps', 'bar', labels, [ds('Steg', days.map(d => d.steps), A)]);
   chart('cKcal', 'bar', labels, [ds('Aktiva', days.map(d => d.kcal_active), W), ds('Totalt', days.map(d => d.kcal_total), M + '55')]);
+}
+
+
+let W1 = {bb: null, stress: null, hrv: null, sleep: null, acts: [], laps: {}};
+const tsLabel = t => {
+  try {
+    const d = new Date(typeof t === 'number' && t > 1e12 ? t : t);
+    return d.toLocaleTimeString('sv-SE', {hour: '2-digit', minute: '2-digit'});
+  } catch { return ''; }
+};
+async function loadWave1() {
+  const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Europe/Stockholm'});
+  const [bb, st, hrv, sleep, acts] = await Promise.all([
+    sb.from('garmin_body_battery_day').select('day,high,low,most_recent,samples').eq('day', today).maybeSingle(),
+    sb.from('garmin_stress_day').select('day,avg_level,max_level,samples').eq('day', today).maybeSingle(),
+    sb.from('garmin_hrv').select('day,last_night_avg,weekly_avg,status,baseline_low,baseline_high').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_sleep').select('day,score,hours,deep_sec,rem_sec,light_sec,awake_sec,samples').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_activities').select('activity_id,start_local,name,activity_type,duration_s,distance_m,avg_hr,avg_cadence,avg_gct_ms,avg_vertical_osc_cm,avg_stride_length,details_synced').order('start_local', {ascending: false}).limit(15),
+  ]);
+  W1.bb = bb.data; W1.stress = st.data; W1.hrv = hrv.data; W1.sleep = sleep.data; W1.acts = acts.data || [];
+  renderWave1();
+}
+function renderWave1() {
+  const A = css('--accent'), G = css('--good'), W = css('--warn'), B = css('--bad'), M = css('--muted');
+  const h = W1.hrv;
+  if (h) $('hrvStatusTiles').innerHTML = [
+    tile('HRV-status', esc(h.status || '–'), `natt ${fmt(h.last_night_avg)} · vecka ${fmt(h.weekly_avg)}`),
+    tile('HRV-bas', `${fmt(h.baseline_low)}–${fmt(h.baseline_high)}`, 'balanserat spann'),
+  ].join('');
+  const bbSamp = (W1.bb?.samples || []).filter(p => p && p.v != null);
+  if (bbSamp.length) chart('cBbToday', 'line', bbSamp.map(p => tsLabel(p.t)), [ds('Body battery', bbSamp.map(p => p.v), G, {pointRadius: 0, borderWidth: 1.5})],
+    {scales: {y: {min: 0, max: 100, ticks: {color: M}}}});
+  const stSamp = (W1.stress?.samples || []).filter(p => p && p.v != null);
+  if (stSamp.length) chart('cStressToday', 'line', stSamp.map(p => tsLabel(p.t)), [ds('Stress', stSamp.map(p => p.v), W, {pointRadius: 0, borderWidth: 1.5})],
+    {scales: {y: {min: 0, max: 100, ticks: {color: M}}}});
+  const sl = W1.sleep;
+  if (sl) {
+    const tot = (sl.deep_sec || 0) + (sl.rem_sec || 0) + (sl.light_sec || 0) + (sl.awake_sec || 0) || 1;
+    const parts = [
+      ['Djup', sl.deep_sec, A], ['REM', sl.rem_sec, G], ['Lätt', sl.light_sec, M], ['Vaken', sl.awake_sec, B],
+    ];
+    $('sleepPhaseBars').innerHTML = `<div class="macro" style="height:14px;border-radius:8px;overflow:hidden;display:flex">${
+      parts.map(([n,s,c]) => `<i title="${n}" style="width:${100*(s||0)/tot}%;background:${c};display:block"></i>`).join('')
+    }</div><div class="row s" style="margin-top:8px">${parts.map(([n,s,c]) => `<span><span style="color:${c}">●</span> ${n} ${fmt(Math.round((s||0)/60))} min</span>`).join('')}</div>`;
+  } else {
+    $('sleepPhaseBars').textContent = 'Ingen sömndata synkad ännu.';
+  }
+}
+async function showActDetail(aid) {
+  const box = $('actDetail'); box.classList.remove('hide');
+  box.innerHTML = '<div class="s">Hämtar varv…</div>';
+  let a = (W1.acts || []).find(x => String(x.activity_id) === String(aid));
+  if (!a) {
+    const {data} = await sb.from('garmin_activities').select('*').eq('activity_id', aid).maybeSingle();
+    a = data;
+  }
+  if (!W1.laps[aid]) {
+    const {data} = await sb.from('garmin_activity_laps').select('*').eq('activity_id', aid).order('lap_index');
+    W1.laps[aid] = data || [];
+  }
+  const laps = W1.laps[aid];
+  const dyn = a ? `<div class="grid" style="margin-bottom:10px">${
+    tile('Kadens', a.avg_cadence != null ? fmt(a.avg_cadence, 0) + ' spm' : '–') +
+    tile('GCT', a.avg_gct_ms != null ? fmt(a.avg_gct_ms, 0) + ' ms' : '–') +
+    tile('Vertikal oscillation', a.avg_vertical_osc_cm != null ? fmt(a.avg_vertical_osc_cm, 1) + ' cm' : '–') +
+    tile('Steglängd', a.avg_stride_length != null ? fmt(a.avg_stride_length / 100, 2) + ' m' : '–')
+  }</div>` : '';
+  const pace = (dur, dist) => {
+    if (!(dur > 0 && dist > 0)) return '–';
+    const p = (dur / 60) / (dist / 1000);
+    return Math.floor(p) + ':' + String(Math.round((p % 1) * 60)).padStart(2, '0');
+  };
+  box.innerHTML = `<h2 style="margin:0 0 8px">${esc(a?.name || 'Pass')} · löpdynamik</h2>${dyn}
+    <div class="tw"><table><tr><th>#</th><th>Intensitet</th><th>Distans</th><th>Tid</th><th>Tempo</th><th>Puls</th><th>Kadens</th><th>GCT</th><th>VO</th></tr>${
+      laps.map(l => `<tr><td>${l.lap_index + 1}</td><td>${esc(l.intensity || '–')}</td>
+        <td>${l.distance_m != null ? fmt(l.distance_m / 1000, 2) + ' km' : '–'}</td>
+        <td>${l.duration_s != null ? Math.round(l.duration_s / 60) + ' min' : '–'}</td>
+        <td>${pace(l.duration_s, l.distance_m)}</td>
+        <td>${fmt(l.avg_hr)}</td><td>${fmt(l.avg_cadence, 0)}</td><td>${fmt(l.avg_gct_ms, 0)}</td><td>${fmt(l.avg_vertical_osc_cm, 1)}</td></tr>`).join('')
+    }</table></div>`;
 }
 
 const sb = supabase.createClient('https://eiixsjcqcmgcullkjjhp.supabase.co', 'sb_publishable_7SINdhqvs28vFJ799dJ9Kw_EqHEfoVL');
@@ -440,6 +529,7 @@ async function load(refresh) {
     $('load').classList.add('hide');
     if (!shown) { shown = true; show(localStorage.tab || 'idag'); }
     render();
+    loadWave1().catch(e => console.warn('wave1', e));
     loadEaten();
     loadRem();
     const age = (Date.now() - new Date(data.updated_at)) / 36e5;
