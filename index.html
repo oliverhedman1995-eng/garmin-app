@@ -1,12 +1,13 @@
 <!doctype html>
 <html lang="sv">
 <head>
+<!-- app-ver: 2026-11-06-w2 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garmin Dashboard</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=20261106w2">
 <meta name="apple-mobile-web-app-title" content="Garmin">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png?v=20261106w2">
 <meta name="theme-color" content="#f9f9fb" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#161618" media="(prefers-color-scheme: dark)">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -100,6 +101,8 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
   <section id="idag" class="tab hide">
     <div class="card rec" id="recCard"></div>
     <div class="grid sec" id="todayTiles"></div>
+    <div class="group sec">Aktivitet idag</div>
+    <div class="grid" id="dailyStatTiles"></div>
     <div class="card sec">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">⏰ Påminnelser</h2><span class="s">Påminnelser visas bara här i appen.</span></div>
       <div id="remList" style="margin-top:8px"></div>
@@ -242,10 +245,15 @@ label.s:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;min-h
   <section id="halsa" class="tab hide">
     <div class="group">Idag</div>
     <div class="grid" id="hrvStatusTiles"></div>
+    <div class="grid" id="readinessTiles"></div>
+    <div class="grid" id="spo2Tiles"></div>
     <div class="grid2 sec">
       <div class="card"><h2>Body battery idag</h2><canvas id="cBbToday"></canvas></div>
       <div class="card"><h2>Stress idag</h2><canvas id="cStressToday"></canvas></div>
     </div>
+    <div class="group">Prognos</div>
+    <div class="grid" id="racePredTiles"></div>
+    <div class="card sec"><h2>Vikt</h2><div id="weightWaveTiles" class="s">Hämtar…</div><canvas id="cWeightWave" class="sec"></canvas></div>
     <div class="group">Trender, 14 dagar</div>
     <div class="grid2">
       <div class="card"><h2>Vilopuls</h2><canvas id="cRhr"></canvas></div>
@@ -436,7 +444,7 @@ function render() {
 }
 
 
-let W1 = {bb: null, stress: null, hrv: null, sleep: null, acts: [], laps: {}};
+let W1 = {bb: null, stress: null, hrv: null, sleep: null, acts: [], laps: {}, stats: null, ready: null, spo2: null, resp: null, weight: [], race: null, vo2: null};
 const tsLabel = t => {
   try {
     const d = new Date(typeof t === 'number' && t > 1e12 ? t : t);
@@ -445,14 +453,23 @@ const tsLabel = t => {
 };
 async function loadWave1() {
   const today = new Date().toLocaleDateString('sv-SE', {timeZone: 'Europe/Stockholm'});
-  const [bb, st, hrv, sleep, acts] = await Promise.all([
+  const [bb, st, hrv, sleep, acts, stats, ready, spo2, resp, weight, race, vo2] = await Promise.all([
     sb.from('garmin_body_battery_day').select('day,high,low,most_recent,samples').eq('day', today).maybeSingle(),
     sb.from('garmin_stress_day').select('day,avg_level,max_level,samples').eq('day', today).maybeSingle(),
     sb.from('garmin_hrv').select('day,last_night_avg,weekly_avg,status,baseline_low,baseline_high').order('day', {ascending: false}).limit(1).maybeSingle(),
     sb.from('garmin_sleep').select('day,score,hours,deep_sec,rem_sec,light_sec,awake_sec,samples').order('day', {ascending: false}).limit(1).maybeSingle(),
     sb.from('garmin_activities').select('activity_id,start_local,name,activity_type,duration_s,distance_m,avg_hr,avg_cadence,avg_gct_ms,avg_vertical_osc_cm,avg_stride_length,details_synced').order('start_local', {ascending: false}).limit(15),
+    sb.from('garmin_daily_stats').select('*').eq('day', today).maybeSingle(),
+    sb.from('garmin_training_readiness').select('*').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_spo2').select('*').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_respiration').select('*').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_weight').select('*').order('day', {ascending: true}).limit(60),
+    sb.from('garmin_race_predictions').select('*').order('day', {ascending: false}).limit(1).maybeSingle(),
+    sb.from('garmin_vo2max').select('*').order('day', {ascending: false}).limit(1).maybeSingle(),
   ]);
   W1.bb = bb.data; W1.stress = st.data; W1.hrv = hrv.data; W1.sleep = sleep.data; W1.acts = acts.data || [];
+  W1.stats = stats.data; W1.ready = ready.data; W1.spo2 = spo2.data; W1.resp = resp.data;
+  W1.weight = weight.data || []; W1.race = race.data; W1.vo2 = vo2.data;
   renderWave1();
 }
 function renderWave1() {
@@ -479,6 +496,57 @@ function renderWave1() {
     }</div><div class="row s" style="margin-top:8px">${parts.map(([n,s,c]) => `<span><span style="color:${c}">●</span> ${n} ${fmt(Math.round((s||0)/60))} min</span>`).join('')}</div>`;
   } else {
     $('sleepPhaseBars').textContent = 'Ingen sömndata synkad ännu.';
+  }
+  // Wave 2 tiles
+  const clockSec = s => {
+    if (s == null) return '–';
+    const m = Math.floor(s / 60), sec = Math.round(s % 60);
+    const h = Math.floor(m / 60), mm = m % 60;
+    return h ? `${h}:${String(mm).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${mm}:${String(sec).padStart(2,'0')}`;
+  };
+  const st = W1.stats;
+  if (st) {
+    const intens = (st.intensity_min_moderate || 0) + 2 * (st.intensity_min_vigorous || 0);
+    $('dailyStatTiles').innerHTML = [
+      tile('Steg', fmt(st.steps), `mål ${fmt(st.step_goal)}`, st.step_goal ? 100 * st.steps / st.step_goal : null),
+      tile('Distans', st.distance_m != null ? fmt(st.distance_m / 1000, 1) + ' km' : '–', ''),
+      tile('Kalorier', fmt(st.kcal_total), `${fmt(st.kcal_active)} aktiva`),
+      tile('Våningar', fmt(st.floors_up, 0), `mål ${fmt(st.floors_goal)}`, st.floors_goal ? 100 * (st.floors_up || 0) / st.floors_goal : null),
+      tile('Intensitetsminuter', fmt(intens), `veckomål ${fmt(st.intensity_goal)}`, st.intensity_goal ? 100 * intens / st.intensity_goal : null),
+    ].join('');
+  } else {
+    $('dailyStatTiles').innerHTML = '<div class="card s">Ingen aktivitetsdata synkad för idag ännu.</div>';
+  }
+  if (W1.ready && (W1.ready.score != null || W1.ready.level)) {
+    $('readinessTiles').innerHTML = tile('Training readiness', fmt(W1.ready.score), esc(W1.ready.level || W1.ready.feedback || ''));
+  } else {
+    $('readinessTiles').innerHTML = '<div class="card s">Training readiness saknas (klockan ger oftast ingen data).</div>';
+  }
+  const spo2Bits = [];
+  if (W1.spo2) spo2Bits.push(tile('SpO₂', fmt(W1.spo2.avg_spo2, 0) + ' %', `lägsta ${fmt(W1.spo2.lowest_spo2)} · 7d ${fmt(W1.spo2.avg_7d, 0)}`));
+  else spo2Bits.push('<div class="card s">Ingen SpO₂-data ännu.</div>');
+  if (W1.resp) spo2Bits.push(tile('Andning', fmt(W1.resp.avg_waking, 0) + '/min', `sömn ${fmt(W1.resp.avg_sleep, 0)} · spann ${fmt(W1.resp.lowest, 0)}–${fmt(W1.resp.highest, 0)}`));
+  else spo2Bits.push('<div class="card s">Ingen andningsdata ännu.</div>');
+  if (W1.vo2) spo2Bits.push(tile('VO₂max', fmt(W1.vo2.vo2max, 1), W1.vo2.day || ''));
+  $('spo2Tiles').innerHTML = spo2Bits.join('');
+  const rc = W1.race;
+  if (rc) {
+    $('racePredTiles').innerHTML = [
+      tile('5 km', clockSec(rc.time_5k_s), 'Garmin-prognos'),
+      tile('10 km', clockSec(rc.time_10k_s), 'Garmin-prognos'),
+      tile('Halvmaraton', clockSec(rc.time_half_s), 'Garmin-prognos'),
+      tile('Maraton', clockSec(rc.time_marathon_s), 'Garmin-prognos'),
+    ].join('');
+  } else {
+    $('racePredTiles').innerHTML = '<div class="card s">Inga loppprognoser synkade ännu.</div>';
+  }
+  const ww = W1.weight || [];
+  if (ww.length) {
+    const last = ww[ww.length - 1];
+    $('weightWaveTiles').innerHTML = `Senaste: <b>${fmt(last.kg, 1)} kg</b> (${esc(last.day)})${last.body_fat != null ? ` · fett ${fmt(last.body_fat, 1)} %` : ''}`;
+    chart('cWeightWave', 'line', ww.map(x => (x.day || '').slice(5)), [ds('kg', ww.map(x => x.kg), A)]);
+  } else {
+    $('weightWaveTiles').textContent = 'Ingen vikt synkad ännu.';
   }
 }
 async function showActDetail(aid) {
