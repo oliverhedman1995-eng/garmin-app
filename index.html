@@ -614,11 +614,12 @@ function renderEaten() {
 }
 // --- Påminnelser ---
 async function loadRem() {
-  const now = new Date().toISOString();
-  const {data} = await sb.from('reminders').select('id,text,due_at').is('sent_at', null).gte('due_at', now).order('due_at').limit(30);
+  const nowMs = Date.now(), from = new Date(nowMs - 864e5).toISOString();
+  const {data} = await sb.from('reminders').select('id,text,due_at').is('sent_at', null).gte('due_at', from).order('due_at').limit(30);
   const when = d => { const t = new Date(d), td = new Date(), tm = new Date(Date.now() + 864e5);
     const day = t.toDateString() === td.toDateString() ? 'Idag' : t.toDateString() === tm.toDateString() ? 'Imorgon' : t.toLocaleDateString('sv-SE', {weekday: 'short', day: 'numeric', month: 'short'});
-    return `${day} ${t.toLocaleTimeString('sv-SE', {hour: '2-digit', minute: '2-digit'})}`; };
+    const late = t.getTime() < nowMs ? ' (förfallen)' : '';
+    return `${day} ${t.toLocaleTimeString('sv-SE', {hour: '2-digit', minute: '2-digit'})}${late}`; };
   $('remList').innerHTML = (data || []).map(r => `<div class="food"><div><b>${esc(r.text)}</b><div class="s">${when(r.due_at)}</div></div>
     <button class="del" data-rem="${r.id}" aria-label="Ta bort ${esc(r.text)}">Ta bort</button></div>`).join('') || '<div class="s">Inga kommande påminnelser.</div>';
 }
