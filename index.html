@@ -81,7 +81,7 @@ canvas{max-width:100%}
       <input id="lEmail" name="email" type="email" inputmode="email" autocapitalize="off" autocomplete="username" placeholder="E-post" style="font-size:16px">
       <input id="lPw" name="password" type="password" autocomplete="current-password" placeholder="Lösenord" style="font-size:16px">
       <label class="s"><input type="checkbox" id="lShow"> Visa lösenord</label>
-      <div class="row"><button class="btn" id="lIn" type="submit">Logga in</button><button class="btn ghost" id="lUp" type="button">Skapa konto</button></div>
+      <div class="row"><button class="btn" id="lIn" type="submit">Logga in</button></div>
       <div class="msg" id="lMsg"></div>
     </form>
   </div>
@@ -374,7 +374,7 @@ function render() {
     $('kostFull').innerHTML = `<div class="grid">${tile('Dagens mål', fmt(n.kcal) + ' kcal', `förbrukning ${fmt(n.tdee)} kcal`)}${tile('Protein', n.protein_g + ' g', '1,8 g per kg kroppsvikt')}${tile('Kolhydrater', n.carbs_g + ' g', 'mest runt träningen')}${tile('Fett', n.fat_g + ' g', '0,8 g per kg')}${tile('Förväntad takt', '−' + fmt(n.expected_kg_per_week, 2) + ' kg', 'per vecka')}</div>
       <div class="card sec"><h2>Smart kalorimål</h2><div class="s">${adaptTxt(n.adaptive)}</div>${n.adaptive ? `<div class="bar"><i style="width:${100 * n.adaptive.weight}%"></i></div>` : ''}</div>
       <div class="card sec"><h2>Fördelning</h2>${macro}<div class="s" style="margin-top:8px">${esc(n.note)}</div></div>
-      <div class="card sec"><h2>Förslag på måltider</h2><div class="tw"><table><tr><th>Måltid</th><th>kcal</th><th>Protein</th><th>Idé</th></tr>${n.meals.map(m => `<tr><td>${m.name}</td><td>${fmt(m.kcal)}</td><td>${m.protein_g} g</td><td>${esc(m.idea)}</td></tr>`).join('')}</table></div></div>`;
+      <div class="card sec"><h2>Förslag på måltider</h2><div class="tw"><table><tr><th>Måltid</th><th>kcal</th><th>Protein</th><th>Idé</th></tr>${n.meals.map(m => `<tr><td>${esc(m.name)}</td><td>${fmt(m.kcal)}</td><td>${m.protein_g} g</td><td>${esc(m.idea)}</td></tr>`).join('')}</table></div></div>`;
   } else $('kostMini').innerHTML = $('kostFull').innerHTML = '<div class="card">Logga din vikt för att få kostråd.</div>';
 
   const sa = D.sleep_analysis;
@@ -695,16 +695,14 @@ async function start() {
   $('login').classList.add('hide'); $('load').classList.remove('hide');
   load(false);
 }
-const auth = async up => {
+const auth = async () => {
   const creds = {email: $('lEmail').value.trim(), password: $('lPw').value};
-  const {error} = await (up ? sb.auth.signUp(creds) : sb.auth.signInWithPassword(creds));
-  $('lMsg').textContent = error ? 'Fel: ' + error.message : up ? 'Konto skapat. Bekräfta via mejlet och logga sedan in här.' : '';
-  if (!error && !up) start();
+  const {error} = await sb.auth.signInWithPassword(creds);
+  $('lMsg').textContent = error ? 'Fel: ' + error.message : '';
+  if (!error) start();
 };
-$('lIn').onclick = () => auth(false);
-$('lUp').onclick = () => auth(true);
+$('lIn').onclick = () => auth();
 $('lShow').onchange = e => $('lPw').type = e.target.checked ? 'text' : 'password';
-$('lUp').onpointerdown = () => $('lPw').autocomplete = 'new-password';
 start();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && D && load(false));
 
